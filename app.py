@@ -5,20 +5,17 @@ from google.oauth2 import service_account
 # --- PRE-FLIGHT CHECK & UI SETUP ---
 st.set_page_config(page_title="Truck File Finder", layout="wide")
 
+folder_id = "1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019"
+
 def check_setup():
     """Validates that secrets and IDs are present before running logic."""
     if "gcp_service_account" not in st.secrets:
         st.error("🛑 **Secret Missing:** I can't find the 'gcp_service_account' in your Streamlit Cloud secrets.")
         st.info("Go to: App Settings -> Secrets -> Paste your JSON here.")
         return False
-    
-    # Check for the Folder ID
-    # You can also put this in your secrets as folder_id: "..."
-    if "folder_id" not in st.secrets:
-        st.warning("⚠️ **Parent Folder ID Missing:** I don't know which Google Drive folder to look in.")
-        return False
-    
-    return True
+
+
+
 
 def get_drive_service():
     """Initializes the Google Drive API connection."""
@@ -38,7 +35,7 @@ def search_truck(truck_name):
     service = get_drive_service()
     if not service: return
 
-    parent_id = st.secrets["folder_id"]
+    parent_id = folder_id
     
     try:
         # 1. Find the folder matching the truck name
