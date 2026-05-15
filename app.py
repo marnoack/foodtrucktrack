@@ -8,7 +8,7 @@ import json
 # --- CONFIGURATION ---
 # 1. Open your 'foodtruck' folder in Drive
 # 2. Copy the ID from the URL and paste it here:
-FOODTRUCK_PARENT_ID = "foodtruck"
+FOODTRUCK_PARENT_ID = "1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019"
 
 # --- Page Configuration ---
 st.set_page_config(
