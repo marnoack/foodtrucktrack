@@ -1,161 +1,188 @@
 import streamlit as st
 import pandas as pd
+from googleapiclient.discovery import build
+from google.oauth2 import service_account
+import datetime
 
-# Set page configuration
+# --- Page Configuration ---
 st.set_page_config(
-    page_title="Austin Food Truck Permit Tracker",
-    page_icon="🚚",
+    page_title="Business Drive Portal",
+    page_icon="📂",
     layout="wide"
 )
 
-# Application Title and Description
-st.title("🚚 Austin Mobile Food Vendor Permit Tracker")
+# --- Custom Styling ---
 st.markdown("""
-This application tracks the essential permits, licenses, and inspections required to operate a food truck 
-within the **City of Austin** and **Travis County**.
-""")
-
-# The Data
-permit_data = [
-    { 
-        "Category": "Health", 
-        "Requirement": "Mobile Food Vendor Permit", 
-        "Authority": "Austin Public Health", 
-        "Frequency": "Annual", 
-        "Est. Cost": 700,
-        "Details": "Primary permit required for all units."
-    },
-    { 
-        "Category": "Fire Safety", 
-        "Requirement": "Mobile Food Unit Fire Inspection", 
-        "Authority": "Austin Fire Dept (AFD)", 
-        "Frequency": "Annual", 
-        "Est. Cost": 225,
-        "Details": "Required for units using propane or electric heating."
-    },
-    { 
-        "Category": "Legal", 
-        "Requirement": "Texas Sales Tax Permit", 
-        "Authority": "TX Comptroller", 
-        "Frequency": "Once", 
-        "Est. Cost": 0,
-        "Details": "Required to collect sales tax on food items."
-    },
-    { 
-        "Category": "Health", 
-        "Requirement": "Food Manager Certificate", 
-        "Authority": "ANSI Accredited", 
-        "Frequency": "Every 5 Years", 
-        "Est. Cost": 50,
-        "Details": "One person on staff must have this certification."
-    },
-    { 
-        "Category": "Operations", 
-        "Requirement": "Central Preparation Facility (CPF) Contract", 
-        "Authority": "Licensed Commissary", 
-        "Frequency": "Monthly", 
-        "Est. Cost": 500,
-        "Details": "Agreement with a licensed kitchen for waste and prep."
-    },
-    { 
-        "Category": "Zoning", 
-        "Requirement": "Itinerant Vendor License", 
-        "Authority": "Austin Police Dept", 
-        "Frequency": "Annual", 
-        "Est. Cost": 50,
-        "Details": "Verification for operating in specific public right-of-ways."
-    },
-    { 
-        "Category": "Fire Safety", 
-        "Requirement": "Propane System Pressure Test", 
-        "Authority": "Licensed Plumber", 
-        "Frequency": "Annual", 
-        "Est. Cost": 150,
-        "Details": "Proof that your gas lines are leak-free."
-    },
-    { 
-        "Category": "Health", 
-        "Requirement": "Food Handler Certificate", 
-        "Authority": "State Approved", 
-        "Frequency": "Every 2 Years", 
-        "Est. Cost": 10,
-        "Details": "Required for all employees handling food."
+    <style>
+    .main { background-color: #f4f7f6; }
+    .stButton>button { width: 100%; border-radius: 8px; height: 3em; font-weight: 600; transition: 0.3s; }
+    .stButton>button:hover { background-color: #4285F4; color: white; border-color: #4285F4; }
+    .file-card {
+        background-color: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        border-left: 6px solid #4285F4;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-bottom: 1rem;
+        transition: transform 0.2s;
     }
-]
-
-df = pd.DataFrame(permit_data)
-
-# Sidebar Filters
-st.sidebar.header("Filter Requirements")
-
-# Filter by Category
-categories = ["All"] + sorted(df["Category"].unique().tolist())
-selected_category = st.sidebar.selectbox("Select Category", categories)
-
-# Filter by Authority
-authorities = ["All"] + sorted(df["Authority"].unique().tolist())
-selected_authority = st.sidebar.selectbox("Select Authority", authorities)
-
-# Search Box
-search_query = st.sidebar.text_input("Search Requirement", "")
-
-# Apply Logic
-filtered_df = df.copy()
-
-if selected_category != "All":
-    filtered_df = filtered_df[filtered_df["Category"] == selected_category]
-
-if selected_authority != "All":
-    filtered_df = filtered_df[filtered_df["Authority"] == selected_authority]
-
-if search_query:
-    filtered_df = filtered_df[filtered_df["Requirement"].str.contains(search_query, case=False)]
-
-# Dashboard Layout
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.metric("Total Requirements", len(filtered_df))
-with col2:
-    total_est = filtered_df["Est. Cost"].sum()
-    st.metric("Total Estimated Initial Cost", f"${total_est:,.2f}")
-with col3:
-    unique_depts = filtered_df["Authority"].nunique()
-    st.metric("Departments Involved", unique_depts)
-
-# Main Table Display
-st.subheader("Permit List")
-
-# Formatting for the table
-def highlight_category(val):
-    colors = {
-        'Health': 'background-color: #d1fae5; color: #065f46',
-        'Fire Safety': 'background-color: #fee2e2; color: #991b1b',
-        'Legal': 'background-color: #f3e8ff; color: #6b21a8',
-        'Operations': 'background-color: #fef3c7; color: #92400e',
-        'Zoning': 'background-color: #dbeafe; color: #1e40af'
+    .file-card:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+    .file-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #1a73e8;
+        text-decoration: none;
     }
-    return colors.get(val, '')
+    .file-title:hover { text-decoration: underline; }
+    .metadata {
+        color: #5f6368;
+        font-size: 0.85rem;
+        margin-top: 0.5rem;
+    }
+    .status-badge {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        background-color: #e8f0fe;
+        color: #1967d2;
+        font-weight: 500;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-# Using st.dataframe for an interactive experience
-st.dataframe(
-    filtered_df,
-    column_config={
-        "Est. Cost": st.column_config.NumberColumn(format="$%d"),
-        "Requirement": st.column_config.TextColumn(width="medium"),
-        "Details": st.column_config.TextColumn(width="large"),
-    },
-    hide_index=True,
-    use_container_width=True
-)
+# --- Google Drive Service Initialization ---
+def get_drive_service():
+    """
+    Initializes the Google Drive API service using a service account.
+    Requires 'google_auth' dictionary in st.secrets.
+    """
+    try:
+        SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+        
+        # Check for credentials in Streamlit Secrets
+        if "google_auth" not in st.secrets:
+            st.warning("Google Drive credentials not found in st.secrets. Using demonstration mode.")
+            return None
+            
+        creds_info = st.secrets["google_auth"]
+        creds = service_account.Credentials.from_service_account_info(
+            creds_info, 
+            scopes=SCOPES
+        )
+        return build('drive', 'v3', credentials=creds)
+    except Exception as e:
+        st.error(f"Failed to initialize Drive API: {str(e)}")
+        return None
 
-# Help Section
-with st.expander("📌 Need Help? Next Steps for Austin Vendors"):
-    st.write("""
-    1. **Contact Austin Public Health**: Visit the Environmental Health Services Division.
-    2. **Get a Commissary**: You must have a signed Central Preparation Facility contract before applying for a health permit.
-    3. **Schedule Inspections**: Fire inspections are conducted at the Rutherford Lane Campus.
-    4. **Register with the State**: Ensure you have your Sales and Use Tax permit through the Texas Comptroller.
-    """)
+def search_drive_files(query_text):
+    """
+    Searches for files in Google Drive shared with the service account.
+    """
+    service = get_drive_service()
+    if not service:
+        # Static demo data returned if API is not configured
+        return [
+            {
+                "name": f"Archive_{query_text}_2024.pdf",
+                "mimeType": "application/pdf",
+                "webViewLink": "#",
+                "modifiedTime": "2024-05-15T12:00:00Z",
+                "iconLink": "https://fonts.gstatic.com/s/i/productlogos/drive/v2/web-24.png"
+            }
+        ]
 
-st.caption("Disclaimer: This list is for informational purposes. Costs and requirements are subject to change by local authorities.")
+    # Sanitize and prepare query
+    clean_query = query_text.replace("'", "\\'")
+    drive_query = f"name contains '{clean_query}' and trashed = false"
+    
+    try:
+        results = service.files().list(
+            q=drive_query,
+            pageSize=20,
+            fields="files(id, name, mimeType, webViewLink, modifiedTime, iconLink)"
+        ).execute()
+        return results.get('files', [])
+    except Exception as e:
+        st.error(f"Error querying Google Drive: {str(e)}")
+        return []
+
+# --- Navigation State Management ---
+if 'view' not in st.session_state:
+    st.session_state.view = 'dashboard'
+
+# --- Sidebar ---
+with st.sidebar:
+    st.title("📂 Business Hub")
+    st.markdown("---")
+    
+    if st.button("📊 Compliance Dashboard"):
+        st.session_state.view = 'dashboard'
+    
+    if st.button("🔍 Client File Search"):
+        st.session_state.view = 'search'
+        
+    st.markdown("---")
+    if "google_auth" in st.secrets:
+        st.success("Google API: Active")
+    else:
+        st.info("Status: Demo Mode")
+    st.caption("v2.1 | Austin, TX")
+
+# --- View: Dashboard (Austin Permit Tracker) ---
+if st.session_state.view == 'dashboard':
+    st.title("Austin Food Truck Compliance")
+    
+    # Key Metrics
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Active Permits", "8", "City of Austin")
+    col2.metric("Total Est. Cost", "$1,785", "Initial Setup")
+    col3.metric("Renewal Cycle", "Annual", "Fire/Health")
+
+    st.markdown("### 📋 Essential Permits & Licenses")
+    
+    permit_data = [
+        {"Category": "Health", "Requirement": "Mobile Food Vendor Permit", "Authority": "Austin Public Health", "Cost": "$700"},
+        {"Category": "Fire Safety", "Requirement": "Fire Inspection", "Authority": "Austin Fire Dept", "Cost": "$225"},
+        {"Category": "Legal", "Requirement": "Texas Sales Tax Permit", "Authority": "TX Comptroller", "Cost": "Free"},
+        {"Category": "Operations", "Requirement": "CPF (Commissary) Contract", "Authority": "Licensed Commissary", "Cost": "Varies"},
+        {"Category": "Zoning", "Requirement": "Itinerant Vendor License", "Authority": "Austin Police Dept", "Cost": "$50"},
+        {"Category": "Safety", "Requirement": "Gas Pressure Test", "Authority": "Licensed Plumber", "Cost": "~$150"}
+    ]
+    st.table(pd.DataFrame(permit_data))
+
+# --- View: Search (Google Drive Integration) ---
+elif st.session_state.view == 'search':
+    st.title("Google Drive Explorer")
+    st.markdown("Enter a business name to locate files shared with your Service Account.")
+
+    user_query = st.text_input("Business Name Search", placeholder="e.g. Acme Corp")
+
+    if user_query:
+        with st.spinner(f"Accessing Drive for '{user_query}'..."):
+            files = search_drive_files(user_query)
+            
+            if files:
+                st.write(f"Search Results for **{user_query}**:")
+                for f in files:
+                    m_time = f.get('modifiedTime', '').split('T')[0]
+                    is_folder = f.get('mimeType') == 'application/vnd.google-apps.folder'
+                    label = "Folder" if is_folder else "File"
+                    
+                    st.markdown(f"""
+                        <div class="file-card">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <img src="{f.get('iconLink')}" width="22px">
+                                <a href="{f.get('webViewLink')}" target="_blank" class="file-title">{f.get('name')}</a>
+                            </div>
+                            <div class="metadata">
+                                <span class="status-badge">{label}</span>
+                                <span> • Modified: {m_time}</span>
+                                <span> • ID: <code>{f.get('id', 'N/A')}</code></span>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.warning("No matches found. Please ensure the Google Drive folder has been shared with your service account email.")
+    else:
+        st.info("Results will appear here. Start typing a name above.")
