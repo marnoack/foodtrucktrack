@@ -14,10 +14,10 @@ st.set_page_config(page_title="Truck Manager", page_icon="🚚", layout="wide")
 def get_drive_service():
     try:
         if "service_account" in st.secrets:
-            creds_info = dict(st.secrets["service_account"])
-            scopes = ['https://www.googleapis.com/auth/drive.readonly']
-            creds = service_account.Credentials.from_service_account_info(creds_info, scopes=scopes)
-            return build('drive', 'v3', credentials=creds)
+            info = st.secrets["gcp_service_account"]
+            credentials = service_account.Credentials.from_service_account_info(info)
+            service = build('drive', 'v3', credentials=credentials)   
+            return build('drive', 'v3', credentials=credentials)
         return None
     except Exception as e:
         st.error(f"Authentication Error: {str(e)}")
