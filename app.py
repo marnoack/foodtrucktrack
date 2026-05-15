@@ -1,129 +1,110 @@
 import streamlit as st
-import pandas as pd
 from googleapiclient.discovery import build
 from google.oauth2 import service_account
 
 # --- CONFIGURATION ---
-# IMPORTANT: Ensure your Service Account email is added as a 'Viewer' 
-# to this specific folder in Google Drive.
-FOODTRUCK_PARENT_ID = "1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019"
+# 1. Open your 'foodtruck' folder in a browser. 
+# 2. Copy the long string of letters/numbers at the end of the URL.
+# 3. Paste it here:
+PARENT_FOLDER_ID = "1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019" 
 
-st.set_page_config(page_title="Truck Manager", page_icon="🚚", layout="wide")
+st.set_page_config(page_title="Truck Finder Debug", layout="wide")
 
-# --- Google Drive Logic ---
 def get_drive_service():
+    """Initializes service with your specific secret key."""
     try:
-        if "service_account" in st.secrets:
-            info = st.secrets["gcp_service_account"]
-            credentials = service_account.Credentials.from_service_account_info(info)
-            service = build('drive', 'v3', credentials=credentials)   
-            return build('drive', 'v3', credentials=credentials)
-        return None
+        # Check if secrets exist
+        if "gcp_service_account" not in st.secrets:
+            st.error("Error: 'gcp_service_account' key missing from Streamlit Secrets.")
+            return None
+        
+        info = st.secrets["gcp_service_account"]
+        credentials = service_account.Credentials.from_service_account_info(info)
+        # Add scopes explicitly just in case
+        scoped_credentials = credentials.with_scopes(['https://www.googleapis.com/auth/drive.readonly'])
+        return build('drive', 'v3', credentials=scoped_credentials)
     except Exception as e:
-        st.error(f"Authentication Error: {str(e)}")
+        st.error(f"Authentication Setup Failed: {e}")
         return None
 
-def find_truck_folder(truck_name):
+def debug_list_all_visible():
+    """Diagnostic: Shows every single folder the Service Account can see."""
     service = get_drive_service()
-    if not service or not truck_name:
-        return None
+    if not service: return
     
+    st.write("### 🔍 Diagnostic: All Visible Folders")
     try:
-        # We use 'contains' which is more flexible than '=' 
-        # Note: API queries are case-sensitive. We search for the exact string provided.
-        query = (
-            f"mimeType = 'application/vnd.google-apps.folder' "
-            f"and '{FOODTRUCK_PARENT_ID}' in parents "
-            f"and name contains '{truck_name}' "
-            f"and trashed = false"
-        )
-        
+        # We query for ALL folders without parent constraints first to see if permissions are working
         results = service.files().list(
-            q=query, 
-            fields="files(id, name)",
-            spaces='drive'
+            q="mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+            fields="files(id, name, parents)",
+            pageSize=50
         ).execute()
-        
         folders = results.get('files', [])
         
-        # If no exact match, try a broader search of ALL subfolders to find a case-insensitive match manually
         if not folders:
-            all_subfolders_query = f"'{FOODTRUCK_PARENT_ID}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
-            all_results = service.files().list(q=all_subfolders_query, fields="files(id, name)").execute()
-            all_folders = all_results.get('files', [])
-            
-            # Manual case-insensitive check
-            for f in all_folders:
-                if truck_name.lower() in f['name'].lower():
-                    return f
-                    
-        return folders[0] if folders else None
-    except Exception as e:
-        st.error(f"Search Error: {str(e)}")
-        return None
-
-def list_files_in_folder(folder_id):
-    service = get_drive_service()
-    try:
-        query = f"'{folder_id}' in parents and trashed = false"
-        results = service.files().list(
-            q=query, 
-            fields="files(id, name, mimeType, webViewLink, modifiedTime)"
-        ).execute()
-        return results.get('files', [])
-    except Exception as e:
-        st.error(f"File List Error: {str(e)}")
-        return []
-
-# --- Sidebar Diagnostics ---
-with st.sidebar:
-    st.title("Settings & Tools")
-    st.info(f"Current Parent ID: {FOODTRUCK_PARENT_ID}")
-    
-    if st.button("🛠 Test Connection"):
-        service = get_drive_service()
-        if service:
-            try:
-                folder_meta = service.files().get(fileId=FOODTRUCK_PARENT_ID, fields='name').execute()
-                st.success(f"Connected! Can see: {folder_meta['name']}")
-            except Exception as e:
-                st.error("Cannot access parent folder. Check Permissions.")
-    
-    st.markdown("---")
-    st.caption("Tip: Add the Service Account email to the 'foodtruck' folder 'Share' settings.")
-
-# --- Main UI ---
-st.title("🚚 Food Truck Document Portal")
-
-search_query = st.text_input("Enter Truck or Firm Name", placeholder="e.g. HILL COUNTRY CULINARY GROUP")
-
-if search_query:
-    with st.spinner("Searching..."):
-        folder = find_truck_folder(search_query)
-        
-        if folder:
-            st.success(f"Found Folder: **{folder['name']}**")
-            files = list_files_in_folder(folder['id'])
-            
-            if files:
-                for f in files:
-                    if f['mimeType'] == 'application/vnd.google-apps.folder': continue
-                    
-                    with st.container():
-                        col1, col2 = st.columns([4, 1])
-                        with col1:
-                            st.markdown(f"**{f['name']}**")
-                            st.caption(f"Modified: {f.get('modifiedTime', 'N/A')}")
-                        with col2:
-                            st.link_button("Open", f['webViewLink'])
-                        st.divider()
-            else:
-                st.warning("No files found inside this folder.")
+            st.warning("The Service Account cannot see ANY folders. Did you share the folder with the Service Account email address?")
+            # Display the email for easy copying
+            if "client_email" in st.secrets["gcp_service_account"]:
+                email = st.secrets["gcp_service_account"]["client_email"]
+                st.info(f"Please share your Google Drive folder with: `{email}`")
         else:
-            st.error(f"No folder found for '{search_query}'.")
-            st.markdown("""
-            **Troubleshooting Steps:**
-            1. **Permissions:** Open Drive, right-click the 'foodtruck' folder -> Share -> Add your Service Account email (from your JSON secrets) as **Viewer**.
-            2. **Folder ID:** Ensure the ID in the code matches the ID in your browser URL when you are inside the 'foodtruck' folder.
-            3. **Sub-folders:** Ensure the folder is directly inside 'foodtruck' and not nested deeper.
-            """)
+            st.write(f"The Service Account sees {len(folders)} folders:")
+            st.table(folders)
+    except Exception as e:
+        st.error(f"API Call Failed: {e}")
+
+def find_files_in_truck(truck_name):
+    """Deep search for the specific truck folder."""
+    service = get_drive_service()
+    if not service: return
+    
+    # Cleaning the search term
+    search_term = truck_name.strip()
+    
+    # Look specifically inside the parent folder
+    query = f"'{PARENT_FOLDER_ID}' in parents and trashed = false"
+    
+    try:
+        results = service.files().list(q=query, fields="files(id, name, mimeType, webViewLink)").execute()
+        items = results.get('files', [])
+        
+        # Find folder by name (case-insensitive)
+        target_folder = next((f for f in items if f['name'].lower() == search_term.lower() and f['mimeType'] == 'application/vnd.google-apps.folder'), None)
+        
+        if target_folder:
+            st.success(f"✅ Found Folder: {target_folder['name']}")
+            # Now list files inside THAT folder
+            file_results = service.files().list(
+                q=f"'{target_folder['id']}' in parents and trashed = false",
+                fields="files(name, webViewLink, mimeType)"
+            ).execute()
+            
+            files = file_results.get('files', [])
+            if not files:
+                st.info("This folder is empty.")
+            else:
+                for f in files:
+                    if f['mimeType'] != 'application/vnd.google-apps.folder':
+                        col1, col2 = st.columns([3, 1])
+                        col1.write(f"📄 {f['name']}")
+                        col2.link_button("Open", f['webViewLink'])
+        else:
+            st.error(f"Could not find a folder named '{search_term}' inside the parent folder.")
+            st.write("Folders actually found inside parent:")
+            st.json([f['name'] for f in items if f['mimeType'] == 'application/vnd.google-apps.folder'])
+            
+    except Exception as e:
+        st.error(f"Search error: {e}")
+
+# --- MAIN UI ---
+st.title("🚚 Food Truck File Manager")
+
+truck_input = st.text_input("Truck Name (e.g., HILL COUNTRY CULINARY GROUP)", "")
+
+if truck_input:
+    find_files_in_truck(truck_input)
+
+st.divider()
+with st.expander("🛠️ Connection Debugger (Click if it's not working)"):
+    debug_list_all_visible()
