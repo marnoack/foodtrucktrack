@@ -6,7 +6,7 @@ from google.oauth2 import service_account
 # --- CONFIGURATION ---
 # IMPORTANT: Ensure your Service Account email is added as a 'Viewer' 
 # to this specific folder in Google Drive.
-FOODTRUCK_PARENT_ID = "YOUR_FOODTRUCK_FOLDER_ID_HERE"
+FOODTRUCK_PARENT_ID = "1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019"
 
 st.set_page_config(page_title="Truck Manager", page_icon="🚚", layout="wide")
 
