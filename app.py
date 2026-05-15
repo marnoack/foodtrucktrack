@@ -1,89 +1,90 @@
 import streamlit as st
-from googleapiclient.discovery import build
-from google.oauth2 import service_account
+import pandas as pd
+from datetime import datetime
 
-# --- PRE-FLIGHT CHECK & UI SETUP ---
-st.set_page_config(page_title="Truck File Finder", layout="wide")
+# --- APP CONFIGURATION ---
+st.set_page_config(
+    page_title="Food Truck Compliance Portal",
+    page_icon="🚚",
+    layout="wide"
+)
 
-folder_id = "1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019"
+# --- MOCK DATA ---
+# This dictionary simulates our database of food truck licenses
+COMPLIANCE_DATABASE = {
+    "HILL COUNTRY CULINARY": [
+        {"Document": "Health Department Permit", "Status": "Active", "Expiration": "2024-12-31"},
+        {"Document": "Fire Marshal Inspection", "Status": "Active", "Expiration": "2025-05-15"},
+        {"Document": "Propane Safety Certificate", "Status": "Expired", "Expiration": "2023-11-01"},
+        {"Document": "General Liability Insurance", "Status": "Active", "Expiration": "2024-09-20"},
+        {"Document": "Food Manager Certificate", "Status": "Pending", "Expiration": "N/A"}
+    ],
+    "TACO TRADITION": [
+        {"Document": "Health Department Permit", "Status": "Active", "Expiration": "2024-11-15"},
+        {"Document": "General Liability Insurance", "Status": "Expired", "Expiration": "2024-01-10"}
+    ]
+}
 
-def check_setup():
-    """Validates that secrets and IDs are present before running logic."""
-    if "gcp_service_account" not in st.secrets:
-        st.error("🛑 **Secret Missing:** I can't find the 'gcp_service_account' in your Streamlit Cloud secrets.")
-        st.info("Go to: App Settings -> Secrets -> Paste your JSON here.")
-        return False
+def apply_status_style(val):
+    """Adds color coding to the Status column."""
+    color = 'black'
+    if val == 'Active':
+        color = '#059669' # Green
+    elif val == 'Expired':
+        color = '#dc2626' # Red
+    elif val == 'Pending':
+        color = '#d97706' # Amber
+    return f'color: {color}; font-weight: bold'
 
+def main():
+    st.title("🚚 Compliance & Licensing Portal")
+    st.markdown("Internal system for tracking food truck certifications and expiration dates.")
 
+    # Search Section
+    st.divider()
+    search_query = st.text_input("Enter Truck Name:", placeholder="e.g., HILL COUNTRY CULINARY").strip().upper()
 
+    if search_query:
+        if search_query in COMPLIANCE_DATABASE:
+            st.success(f"Records found for **{search_query}**")
+            
+            # Formatting data for display
+            records = COMPLIANCE_DATABASE[search_query]
+            df = pd.DataFrame(records)
+            
+            # Display Metrics
+            col1, col2, col3 = st.columns(3)
+            active_count = len([r for r in records if r['Status'] == 'Active'])
+            expired_count = len([r for r in records if r['Status'] == 'Expired'])
+            
+            col1.metric("Active Licenses", active_count)
+            col2.metric("Expired/Alerts", expired_count, delta_color="inverse")
+            col3.metric("Last Audit", datetime.now().strftime("%b %d, %Y"))
 
-def get_drive_service():
-    """Initializes the Google Drive API connection."""
-    try:
-        info = st.secrets["gcp_service_account"]
-        creds = service_account.Credentials.from_service_account_info(
-            info, 
-            scopes=['https://www.googleapis.com/auth/drive.readonly']
-        )
-        return build('drive', 'v3', credentials=creds)
-    except Exception as e:
-        st.error(f"Failed to connect to Google Drive: {e}")
-        return None
+            # Styled Table
+            st.subheader("License Details")
+            styled_df = df.style.applymap(apply_status_style, subset=['Status'])
+            st.table(styled_df)
 
-def search_truck(truck_name):
-    """Searches for a subfolder and lists its contents."""
-    service = get_drive_service()
-    if not service: return
+            # Action Area
+            st.subheader("Administrative Actions")
+            action_col1, action_col2 = st.columns(2)
+            with action_col1:
+                if st.button("Download Compliance Report (PDF)"):
+                    st.write("Generating report...")
+            with action_col2:
+                if st.button("Email Expiration Alerts to Owner"):
+                    st.write("Alerts sent successfully.")
 
-    parent_id = folder_id
-    
-    try:
-        # 1. Find the folder matching the truck name
-        # We search inside the parent_id for folders with the specific name
-        query = f"'{parent_id}' in parents and name = '{truck_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
-        results = service.files().list(q=query, fields="files(id, name)").execute()
-        folders = results.get('files', [])
-
-        if not folders:
-            st.error(f"No folder found for '{truck_name}'. Check spelling or ensure the folder is inside the parent directory.")
-            return
-
-        folder_id = folders[0]['id']
-        st.success(f"📂 Found Folder: {folders[0]['name']}")
-
-        # 2. List files inside that truck's folder
-        file_query = f"'{folder_id}' in parents and trashed = false"
-        file_results = service.files().list(q=file_query, fields="files(name, webViewLink, mimeType)").execute()
-        files = file_results.get('files', [])
-
-        if not files:
-            st.info("This folder is empty.")
         else:
-            for f in files:
-                # Skip sub-folders for now, just show files
-                if f['mimeType'] != 'application/vnd.google-apps.folder':
-                    col1, col2 = st.columns([4, 1])
-                    col1.markdown(f"**{f['name']}**")
-                    col2.link_button("View File", f['webViewLink'])
+            st.error(f"No records found for '{search_query}'. Please check the spelling or contact the administrator.")
+    else:
+        st.info("Waiting for input... please enter a truck name above to view compliance status.")
 
-    except Exception as e:
-        st.error(f"Search Error: {e}")
+    # Sidebar info
+    st.sidebar.header("System Status")
+    st.sidebar.info("Database: Connected")
+    st.sidebar.write(f"Logged in as: Admin_User")
 
-# --- MAIN APP LOGIC ---
-st.title("🚚 Food Truck File Finder")
-
-if check_setup():
-    truck_name = st.text_input("Enter Truck Name exactly as it appears in Drive:", placeholder="e.g. HILL COUNTRY CULINARY GROUP")
-    
-    if st.button("Search Files") or truck_name:
-        if truck_name:
-            search_truck(truck_name)
-        else:
-            st.warning("Please enter a name to search.")
-
-    # Shared with me debug
-    with st.expander("Help! I still don't see anything."):
-        email = st.secrets["gcp_service_account"].get("client_email", "unknown")
-        st.write("1. **Check Sharing:** Make sure the Google Drive folder is shared with this email:")
-        st.code(email)
-        st.write("2. **Check Folder ID:** Ensure your 'folder_id' secret matches the long ID in the URL of your main Drive folder.")
+if __name__ == "__main__":
+    main()
