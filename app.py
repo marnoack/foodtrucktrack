@@ -8,7 +8,7 @@ import socket
 from datetime import datetime
 
 # --- INTERNAL CONFIGURATION ---
-PARENT_FOLDER_ID = "YOUR_GOOGLE_DRIVE_FOLDER_ID_HERE" 
+PARENT_FOLDER_ID = '1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019'
 
 st.set_page_config(page_title="Compliance Portal", layout="wide")
 
