@@ -2,7 +2,66 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, date
 from supabase import create_client, Client
+import boto3
+import re
 
+def run_ocr_processor(file_bytes, category: str) -> dict:
+    """
+    Processes raw file bytes directly with AWS Textract without saving to S3,
+    and parses out the document entity and expiration date.
+    """
+    # Initialize Textract client using Streamlit Secrets
+    textract_client = boto3.client(
+        'textract',
+        aws_access_key_id=st.secrets["AWS_ACCESS_KEY_ID"],
+        aws_secret_access_key=st.secrets["AWS_SECRET_ACCESS_KEY"],
+        region_name=st.secrets["AWS_REGION"]
+    )
+    
+    # Initialize baseline structure
+    extracted_data = {
+        "issuing_entity": "",
+        "expiration_date": ""
+    }
+    
+    try:
+        # Pass the memory bytes directly to AWS
+        response = textract_client.analyze_document(
+            Document={'Bytes': file_bytes},
+            FeatureTypes=["FORMS"]
+        )
+        
+        # Extract lines of text from the Textract blocks
+        all_lines = []
+        for block in response.get('Blocks', []):
+            if block['BlockType'] == 'LINE':
+                all_lines.append(block['Text'])
+                
+        combined_text = " ".join(all_lines).lower()
+        
+        # Basic context classification heuristics
+        if "health" in combined_text or "sanitation" in combined_text:
+            extracted_data["issuing_entity"] = "Department of Health Services"
+        elif "fire" in combined_text or "marshal" in combined_text:
+            extracted_data["issuing_entity"] = "Fire Marshal Office"
+        elif "comptroller" in combined_text or "tax" in combined_text:
+            extracted_data["issuing_entity"] = "State Comptroller Office"
+        else:
+            extracted_data["issuing_entity"] = "City Regulatory Authority"
+            
+        # Regex search for an ISO date pattern (YYYY-MM-DD)
+        date_match = re.search(r'\b\d{4}-\d{2}-\d{2}\b', combined_text)
+        if date_match:
+            extracted_data["expiration_date"] = date_match.group(0)
+        else:
+            # Fallback default if Textract can't clearly parse a valid date format
+            extracted_data["expiration_date"] = date.today().strftime('%Y-%m-%d')
+            
+    except Exception as aws_error:
+        st.error(f"Error de procesamiento en AWS Textract: {aws_error}")
+        
+    return extracted_data
+    
 # Global Translation Dictionary
 CATEGORY_TRANSLATIONS = {
     "en": {
@@ -312,11 +371,91 @@ def main():
         st.table(df_display.style.map(style_status, subset=[ui_labels["status"]]))
         
     # Management Actions
-    with st.expander("Actualizar Registros y Notas"):
-        note = st.text_area("Notas de Auditoría", placeholder="Ingrese las observaciones de la última visita al sitio...")
-        uploaded_file = st.file_uploader("Subir Nuevo Documento", type=['pdf', 'jpg', 'png'])
-        if st.button("Enviar Actualización"):
-            st.toast("¡Registro actualizado con éxito!", icon="✅")
+    with st.expander("📤 Cargar y Escanear Nuevo Documento"):
+        st.markdown("### 🤖 Sistema de Escaneo Automático (OCR)")
+        
+        # Step 1: Force category selection first
+        available_categories = {
+            CATEGORY_TRANSLATIONS[user_lang][key]: key 
+            for key in ["tax", "health", "fire_safety", "business_license", "other"]
+        }
+        
+        selected_ui_category = st.selectbox(
+            "1. Seleccione la categoría del documento *",
+            options=["-- Seleccione una categoría --"] + list(available_categories.keys())
+        )
+        
+        if selected_ui_category != "-- Seleccione una categoría --":
+            backend_category_key = available_categories[selected_ui_category]
+            
+            # Step 2: File upload acts as the trigger for OCR processing
+            uploaded_file = st.file_uploader(
+                f"2. Suba el documento de {selected_ui_category} para escaneo automático", 
+                type=['pdf', 'jpg', 'png']
+            )
+            
+            if uploaded_file is not None:
+                # Use session state to cache OCR results so they don't re-run on every click
+                if "ocr_data" not in st.session_state or st.session_state.get("current_file") != uploaded_file.name:
+                    with st.spinner("🤖 Analizando documento con AWS Textract... Leyendo datos..."):
+                        
+                        # Read the file bytes directly from Streamlit memory
+                        file_bytes = uploaded_file.read()
+                        
+                        # ==========================================================
+                        # PLACE THE NEW DIRECT-STREAM LINE HERE:
+                        # ==========================================================
+                        extracted_text = run_ocr_processor(file_bytes, backend_category_key)
+                        # ==========================================================
+                        
+                        # Save to session state to prevent reprocessing loops
+                        st.session_state.ocr_data = extracted_text
+                        st.session_state.current_file = uploaded_file.name
+                        st.success("¡Lectura de datos completada con éxito!")
+
+                # Retrieve scanned data from state cache
+                scanned = st.session_state.ocr_data
+                
+                st.markdown("### 🔍 Verifique los Datos Extraídos")
+                st.caption("El sistema leyó la siguiente información. Corrija cualquier dato si es necesario antes de guardar.")
+                
+                # Step 3: Prefill fields with OCR outputs.
+                review_entity = st.text_input(
+                    "Entidad Emisora / Nombre del Documento Detectado *", 
+                    value=scanned.get("issuing_entity", "")
+                )
+                
+                # Convert string date from OCR back to a Python datetime object for the UI picker
+                try:
+                    default_date = datetime.strptime(scanned.get("expiration_date", ""), "%Y-%m-%d").date()
+                except ValueError:
+                    default_date = None
+                    
+                review_expiry = st.date_input("Fecha de Vencimiento Detectada *", value=default_date)
+                
+                # Step 4: Final Confirmation
+                if st.button("Confirmar y Guardar en Expediente", type="primary", use_container_width=True):
+                    if review_entity and review_expiry:
+                        new_permit_row = {
+                            "vendor_id": vendor["id"],
+                            "category": backend_category_key,
+                            "issuing_entity": review_entity,
+                            "expiration_date": review_expiry.strftime('%Y-%m-%d'),
+                            "status": "Approved" 
+                        }
+                        
+                        try:
+                            result = supabase.table("vendor_permits").insert(new_permit_row).execute()
+                            if result.data:
+                                # Clear OCR cache on successful upload to reset state completely
+                                del st.session_state.ocr_data
+                                del st.session_state.current_file
+                                st.toast("¡Documento guardado y verificado en la base de datos!", icon="✅")
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Error al guardar registros: {e}")
+                    else:
+                        st.error("Los campos requeridos no pueden estar vacíos.")
 
     # Critical Alerts
     if vendor['status'] == "Vencido":
