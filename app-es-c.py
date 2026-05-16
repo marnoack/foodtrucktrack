@@ -591,8 +591,7 @@ def main():
                 # Retrieve scanned data from state cache
                 scanned = st.session_state.ocr_data
                 
-                if "ocr_data" not in st.session_state:
-                    st.rerun()
+                form_container = st.empty()
                     
                 with st.form("verificacion_documento_form"):
                     st.markdown("### 🔍 Verifique los Datos Extraídos")
@@ -685,6 +684,10 @@ def main():
                             try:
                                 result = supabase.table("vendor_permits").insert(new_permit_row).execute()
                                 if result.data:
+                                    
+                                    # Agregue esta línea aquí para borrar el formulario de la pantalla:
+                                    form_container.empty()
+                                    
                                     # Clear OCR cache on successful upload to reset state completely
                                     del st.session_state.ocr_data
                                     del st.session_state.current_file
