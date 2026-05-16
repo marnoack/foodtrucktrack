@@ -1,5 +1,6 @@
 import streamlit as st
-import pandas as pdimport streamlit as st
+import pandas as pd
+import streamlit as st
 import pandas as pd
 from datetime import datetime
 from supabase import create_client, Client
