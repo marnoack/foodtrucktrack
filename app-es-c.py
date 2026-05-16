@@ -129,7 +129,8 @@ CATEGORY_TRANSLATIONS = {
             "expiry": "Expiration Date",
             "status": "Status",
             "aprobado": "Approved",
-            "vencido": "Expired"
+            "vencido": "Expired",
+            "faltante": "Missing"
         }
     },
     "es": {
@@ -144,7 +145,8 @@ CATEGORY_TRANSLATIONS = {
             "expiry": "Fecha de Vencimiento",
             "status": "Estado",
             "aprobado": "Aprobado",
-            "vencido": "Vencido"
+            "vencido": "Vencido",
+            "faltante": "Faltante"
         }
     }
 }
@@ -562,6 +564,13 @@ def main():
                 # 2. El botón de confirmación que modificamos en el primer paso va inmediatamente después
                 if st.button("Confirmar y Guardar en Expediente", type="primary", use_container_width=True):
                     if review_entity and review_expiry and review_issue:
+                        # Buscamos el ID correspondiente de la regla para inyectarlo en la llave foránea
+                        matched_rule_id = None
+                        if mandatory_permits:
+                            matched_rule = next((r for r in mandatory_permits if r["permit_name"] == review_entity), None)
+                            if matched_rule:
+                                matched_rule_id = matched_rule["id"]
+                                
                         new_permit_row = {
                              "vendor_id": vendor["id"],
                              "category": backend_category_key,
