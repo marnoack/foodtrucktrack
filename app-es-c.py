@@ -3,6 +3,50 @@ import pandas as pd
 from datetime import datetime
 from supabase import create_client, Client
 
+# Global Translation Dictionary
+CATEGORY_TRANSLATIONS = {
+    "en": {
+        "tax": "Tax",
+        "health": "Health & Safety",
+        "fire_safety": "Fire Safety",
+        "business_license": "Business License",
+        "other": "Other",
+        "ui": {
+            "document": "Document",
+            "category": "Category",
+            "expiry": "Expiration Date",
+            "status": "Status",
+            "aprobado": "Approved",
+            "vencido": "Expired"
+        }
+    },
+    "es": {
+        "tax": "Impuestos",
+        "health": "Salud e Higiene",
+        "fire_safety": "Seguridad contra Incendios",
+        "business_license": "Licencia de Negocio",
+        "other": "Otro",
+        "ui": {
+            "document": "Documento",
+            "category": "Categoría",
+            "expiry": "Fecha de Vencimiento",
+            "status": "Estado",
+            "aprobado": "Aprobado",
+            "vencido": "Vencido"
+        }
+    }
+}
+
+//*****************************************************************
+# Setup language state (from user toggle or default)
+if "lang" not in st.session_state:
+    st.session_state.lang = "es"  # Defaulting to Spanish based on dashboard style
+
+user_lang = st.session_state.lang
+ui_labels = CATEGORY_TRANSLATIONS[user_lang]["ui"]
+
+//*****************************************************************
+
 # Page configuration
 st.set_page_config(
     page_title="Panel de Control CompliancePro",
@@ -110,6 +154,11 @@ def main():
     
     # Sidebar Navigation
     st.sidebar.title("🚚 CompliancePro")
+    
+    # Simple Language Toggle in Sidebar UI
+    lang_choice = st.sidebar.selectbox("🌐 Idioma / Language", ["Español", "English"])
+    st.session_state.lang = "es" if lang_choice == "Español" else "en"
+    
     st.sidebar.markdown("---")
     
     search_query = st.sidebar.text_input("Buscar Vendedor", placeholder="Nombre o propietario...")
@@ -155,12 +204,6 @@ def main():
                         "status": new_status,
                         "last_audit": datetime.today().strftime('%Y-%m-%d'),
                         "score": 0,  # Starts at 0% until audited
-                        "permits": [
-                            {"document": "Business License", "status": "Faltante", "expiry": "N/A"},
-                            {"document": "Health Dept Permit", "status": "Faltante", "expiry": "N/A"},
-                            {"document": "Fire Safety Cert", "status": "Faltante", "expiry": "N/A"},
-                            {"document": "Food Handler Cards", "status": "Faltante", "expiry": "N/A"}
-                        ]
                     }
                     
                     try:
@@ -229,22 +272,38 @@ def main():
     # Document Table
     st.subheader("Repositorio de Documentos")
     
-    # Translating column headers visually for Spanish clients
-    df = pd.DataFrame(vendor['permits'])
-    df_es = df.rename(columns={
-        "document": "Documento",
-        "status": "Estado",
-        "expiry": "Fecha de Vencimiento"
-    })
-    
-    # Styled table display (using the corrected .map() method)
-    def style_status(val):
-        color = '#d1fae5' if val == 'Aprobado' else '#fee2e2' if val in ['Vencido', 'Faltante'] else '#fef3c7'
-        text_color = '#065f46' if val == 'Aprobado' else '#991b1b' if val in ['Vencido', 'Faltante'] else '#92400e'
-        return f'background-color: {color}; color: {text_color}; font-weight: bold; border-radius: 5px'
+    if not raw_permits:
+        st.info("No se encontraron permisos o certificaciones en el repositorio de este cliente.")
+    else:
+        # Process database array into translated UI display lists
+        processed_permits = []
+        for p in raw_permits:
+            # 1. Evaluate clean automated state statuses using current system date
+            is_expired = p['expiration_date'] < date.today().strftime('%Y-%m-%d')
+            status_text = ui_labels["vencido"] if is_expired else ui_labels["aprobado"]
+            
+            # 2. Extract specific backend mapping dictionary values
+            backend_key = p['category']
+            translated_category = CATEGORY_TRANSLATIONS[user_lang].get(backend_key, backend_key)
+            
+            processed_permits.append({
+                ui_labels["document"]: p["issuing_entity"],
+                ui_labels["category"]: translated_category,
+                ui_labels["expiry"]: p["expiration_date"],
+                ui_labels["status"]: status_text
+            })
 
-    st.table(df_es.style.map(style_status, subset=['Estado']))
+        df_display = pd.DataFrame(processed_permits)
+        
+        # Styled table display condition methods
+        def style_status(val):
+            is_ok = val in ['Aprobado', 'Approved']
+            color = '#d1fae5' if is_ok else '#fee2e2'
+            text_color = '#065f46' if is_ok else '#991b1b'
+            return f'background-color: {color}; color: {text_color}; font-weight: bold; border-radius: 5px'
 
+        st.table(df_display.style.map(style_status, subset=[ui_labels["status"]]))
+        
     # Management Actions
     with st.expander("Actualizar Registros y Notas"):
         note = st.text_area("Notas de Auditoría", placeholder="Ingrese las observaciones de la última visita al sitio...")
