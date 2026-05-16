@@ -163,7 +163,12 @@ def main():
     ]
     
     vendor_names = [v['name'] for v in filtered_vendors]
-    selected_name = st.sidebar.radio("Seleccionar Vendedor", vendor_names if vendor_names else ["No se encontraron resultados"])
+    # selectbox for scalability with large client lists
+    selected_name = st.sidebar.selectbox(
+        "Seleccionar Vendedor", 
+        options=vendor_names if vendor_names else ["No se encontraron resultados"],
+        index=0 if vendor_names else None
+    )
     
     st.sidebar.markdown("---")
     st.sidebar.write("💡 ¿Necesita información regulatoria?")
