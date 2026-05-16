@@ -4,135 +4,181 @@ import json
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 import io
+import socket
 from datetime import datetime
 
 # --- CONFIGURATION ---
-PARENT_FOLDER_ID = "1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019"
+PARENT_FOLDER_ID = '1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019'
 
-# Requirement definitions for the checklist
-PERMIT_REQUIREMENTS = {
-    "Business License": ["license", "business", "registration"],
-    "Health Permit": ["health", "sanitary", "inspection"],
-    "Fire Safety Certificate": ["fire", "marshal", "extinguisher"],
-    "Insurance COI": ["insurance", "coi", "liability"],
-    "Seller's Permit": ["seller", "tax", "resale"],
-    "Vehicle Registration": ["registration", "dmv", "truck registration"],
-    "Commissary Agreement": ["commissary", "kitchen", "agreement"]
-}
+st.set_page_config(page_title="Austin Food Truck Compliance", layout="wide", page_icon="🚛")
 
-st.set_page_config(page_title="Food Truck Compliance Portal", layout="wide")
+# --- THE DATA (RESTORED FROM GITHUB SNIPPET) ---
+permit_data = [
+    { 
+        "Category": "Health", 
+        "Requirement": "Mobile Food Vendor Permit", 
+        "Authority": "Austin Public Health", 
+        "Frequency": "Annual", 
+        "Est. Cost": 700,
+        "Details": "Primary permit required for all units."
+    },
+    { 
+        "Category": "Fire Safety", 
+        "Requirement": "Mobile Food Unit Fire Inspection", 
+        "Authority": "Austin Fire Dept (AFD)", 
+        "Frequency": "Annual", 
+        "Est. Cost": 225,
+        "Details": "Required for units using propane or electric heating."
+    },
+    { 
+        "Category": "Legal", 
+        "Requirement": "Texas Sales Tax Permit", 
+        "Authority": "TX Comptroller", 
+        "Frequency": "Once", 
+        "Est. Cost": 0,
+        "Details": "Required to collect sales tax on food items."
+    },
+    { 
+        "Category": "Health", 
+        "Requirement": "Food Manager Certificate", 
+        "Authority": "ANSI Accredited", 
+        "Frequency": "Every 5 Years", 
+        "Est. Cost": 50,
+        "Details": "One person on staff must have this certification."
+    },
+    { 
+        "Category": "Operations", 
+        "Requirement": "Central Preparation Facility (CPF) Contract", 
+        "Authority": "Licensed Commissary", 
+        "Frequency": "Monthly", 
+        "Est. Cost": 500,
+        "Details": "Agreement with a licensed kitchen for waste and prep."
+    },
+    { 
+        "Category": "Zoning", 
+        "Requirement": "Itinerant Vendor License", 
+        "Authority": "Austin Police Dept", 
+        "Frequency": "Annual", 
+        "Est. Cost": 50,
+        "Details": "Verification for operating in specific public right-of-ways."
+    },
+    { 
+        "Category": "Fire Safety", 
+        "Requirement": "Propane System Pressure Test", 
+        "Authority": "Licensed Plumber", 
+        "Frequency": "Annual", 
+        "Est. Cost": 150,
+        "Details": "Proof that your gas lines are leak-free."
+    },
+    { 
+        "Category": "Health", 
+        "Requirement": "Food Handler Certificate", 
+        "Authority": "State Approved", 
+        "Frequency": "Every 2 Years", 
+        "Est. Cost": 10,
+        "Details": "Required for all employees handling food."
+    }
+]
 
-def get_drive_service():
-    """Initializes Google Drive service."""
-    if "google_auth" in st.secrets:
-        try:
-            info = json.loads(st.secrets["google_auth"])
-            creds = service_account.Credentials.from_service_account_info(info)
-            scoped_creds = creds.with_scopes(['https://www.googleapis.com/auth/drive.readonly'])
-            return build('drive', 'v3', credentials=scoped_creds)
-        except Exception as e:
-            st.error(f"Authentication Error: {e}")
-            return None
-    return None
+# --- SESSION STATE & NAVIGATION ---
+if 'page' not in st.session_state:
+    st.session_state.page = 'Requirements'
 
-def fetch_truck_data(truck_name):
-    """Retrieves folder contents and matches them against requirements."""
-    service = get_drive_service()
-    if not service or not truck_name:
-        return None, None
-        
+def set_page(page_name):
+    st.session_state.page = page_name
+
+with st.sidebar:
+    st.title("🚛 Food Truck Admin")
+    st.button("📋 Permit Requirements", on_click=set_page, args=('Requirements',), use_container_width=True)
+    st.button("📂 Digital Document Locker", on_click=set_page, args=('Locker',), use_container_width=True)
+    st.divider()
+    st.caption(f"Last Accessed: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    st.caption(f"Host: {socket.gethostname()}")
+
+# --- GOOGLE DRIVE HELPER FUNCTIONS ---
+def get_gdrive_service():
     try:
-        # 1. Find the truck's specific folder
-        folder_query = (
-            f"name = '{truck_name}' and "
-            f"mimeType = 'application/vnd.google-apps.folder' and "
-            f"'{PARENT_FOLDER_ID}' in parents and trashed = false"
-        )
-        folder_results = service.files().list(q=folder_query, fields="files(id, name)").execute()
-        folders = folder_results.get('files', [])
-        
-        if not folders:
-            return "folder_not_found", None
-            
-        # 2. Get files from that folder
-        target_folder_id = folders[0]['id']
-        file_query = f"'{target_folder_id}' in parents and trashed = false"
-        file_results = service.files().list(
-            q=file_query,
-            fields="files(id, name, webViewLink, mimeType, modifiedTime)"
-        ).execute()
-        
-        files = file_results.get('files', [])
-        
-        # 3. Logic to determine compliance status
-        compliance_status = []
-        for req, keywords in PERMIT_REQUIREMENTS.items():
-            # Check if any file name contains any of the keywords for this requirement
-            matched_file = next((f for f in files if any(k in f['name'].lower() for k in keywords)), None)
-            compliance_status.append({
-                "Requirement": req,
-                "Status": "✅ Complete" if matched_file else "❌ Missing",
-                "File Name": matched_file['name'] if matched_file else "N/A",
-                "Link": matched_file['webViewLink'] if matched_file else None
-            })
-            
-        return files, compliance_status
-        
+        # Assumes streamlit secrets are configured with service account info
+        info = st.secrets["gcp_service_account"]
+        credentials = service_account.Credentials.from_service_account_info(info)
+        return build('drive', 'v3', credentials=credentials)
     except Exception as e:
-        st.error(f"API Error: {e}")
-        return None, None
+        st.error(f"❌ Google Drive Auth Error: {e}")
+        st.info("Please ensure 'gcp_service_account' is set in Streamlit Secrets.")
+        st.stop()
 
-# --- UI LAYOUT ---
-st.title("🚚 Food Truck Compliance & Document Portal")
-st.markdown("---")
+def find_truck_folder(service, truck_name):
+    query = (f"name = '{truck_name}' and "
+             f"'{PARENT_FOLDER_ID}' in parents and "
+             f"mimeType = 'application/vnd.google-apps.folder' and "
+             f"trashed = false")
+    results = service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
+    files = results.get('files', [])
+    return files[0]['id'] if files else None
 
-truck_name_input = st.text_input("Search Food Truck Name", placeholder="e.g. Taco Time")
+def list_files_in_folder(service, folder_id):
+    query = f"'{folder_id}' in parents and trashed = false"
+    results = service.files().list(q=query, spaces='drive', fields='files(id, name, modifiedTime, webViewLink)').execute()
+    return results.get('files', [])
 
-if truck_name_input:
-    files, compliance = fetch_truck_data(truck_name_input)
+# --- PAGE RENDERING ---
+
+if st.session_state.page == 'Requirements':
+    st.title("📋 Austin Permit Requirements")
+    st.info("Below is the regulatory roadmap for operating a mobile food unit in Austin, TX.")
     
-    if files == "folder_not_found":
-        st.error(f"No folder found for '{truck_name_input}' in the main directory.")
-    elif files is not None:
-        # Create Tabs for a clean view
-        tab1, tab2 = st.tabs(["📋 Compliance Checklist", "📂 All Documents"])
-        
-        with tab1:
-            st.subheader(f"Compliance Status: {truck_name_input}")
-            comp_df = pd.DataFrame(compliance)
-            
-            # Styling for the table
-            def color_status(val):
-                color = 'green' if 'Complete' in val else 'red'
-                return f'color: {color}; font-weight: bold'
-
-            st.table(comp_df[['Requirement', 'Status', 'File Name']])
-            
-            # Missing items summary
-            missing = [c['Requirement'] for c in compliance if "Missing" in c['Status']]
-            if missing:
-                st.warning(f"**Missing Items:** {', '.join(missing)}")
-            else:
-                st.success("All primary documents are present!")
-
-        with tab2:
-            st.subheader("Direct File Access")
-            if not files:
-                st.info("No files found in this folder.")
-            else:
-                for f in files:
-                    col1, col2 = st.columns([4, 1])
-                    with col1:
-                        st.write(f"📄 **{f['name']}**")
-                        st.caption(f"Last updated: {f['modifiedTime'][:10]}")
-                    with col2:
-                        st.link_button("Open", f['webViewLink'])
-                    st.divider()
-
-else:
-    st.info("Please enter a truck name to check document status.")
+    df = pd.DataFrame(permit_data)
     
-# Footer
-st.sidebar.markdown(f"**Admin Tools**")
-st.sidebar.write(f"Connection Status: Active")
-st.sidebar.write(f"Last Sync: {datetime.now().strftime('%H:%M:%S')}")
+    # Financial Overview Metrics
+    col1, col2, col3 = st.columns(3)
+    annual_fees = df[df['Frequency'].isin(['Annual', 'Every 2 Years', 'Every 5 Years'])]['Est. Cost'].sum()
+    monthly_fees = df[df['Frequency'] == 'Monthly']['Est. Cost'].sum()
+    
+    col1.metric("Annualized Regulatory Fees", f"${annual_fees:,.2f}")
+    col2.metric("Monthly Recurring (CPF)", f"${monthly_fees:,.2f}")
+    col3.metric("Permit Count", len(df))
+
+    st.divider()
+
+    # Data Table with Formatting
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Est. Cost": st.column_config.NumberColumn(format="$%d"),
+            "Requirement": st.column_config.TextColumn(help="Official name of the permit/certification"),
+            "Details": st.column_config.TextColumn(width="large")
+        }
+    )
+
+elif st.session_state.page == 'Locker':
+    st.title("📂 Digital Document Locker")
+    st.write("Access your cloud-stored compliance documents directly from Google Drive.")
+
+    truck_name = st.text_input("Enter Truck Name (Folder Name):", placeholder="e.g. HILL COUNTRY CULINARY")
+
+    if truck_name:
+        service = get_gdrive_service()
+        with st.spinner(f"Accessing folder: {truck_name}..."):
+            folder_id = find_truck_folder(service, truck_name)
+            
+            if folder_id:
+                files = list_files_in_folder(service, folder_id)
+                if files:
+                    st.success(f"Found {len(files)} documents.")
+                    
+                    # Transform for display
+                    file_list = []
+                    for f in files:
+                        file_list.append({
+                            "Document Name": f['name'],
+                            "Modified": f['modifiedTime'][:10],
+                            "View": f['webViewLink']
+                        })
+                    
+                    st.table(pd.DataFrame(file_list))
+                else:
+                    st.warning("Folder found, but it is currently empty.")
+            else:
+                st.error(f"No folder named '{truck_name}' found in the system root.")
