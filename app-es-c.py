@@ -453,8 +453,13 @@ def main():
             else: # Faltante / Missing
                 return 'background-color: #fef3c7; color: #92400e; font-weight: bold; border-radius: 5px;'
 
-        st.table(df_display.style.map(style_status, subset=[ui_labels["status"]]))
-   
+        #st.table(df_display.style.map(style_status, subset=[ui_labels["status"]]))
+        st.dataframe(
+            df_display.style.map(style_status, subset=[ui_labels["status"]]), 
+            use_container_width=True,
+            hide_index=True
+        )
+
     # Management Actions
     with st.expander("📤 Cargar y Escanear Nuevo Documento"):
         st.markdown("### 🤖 Sistema de Escaneo Automático (OCR)")
