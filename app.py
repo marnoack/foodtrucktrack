@@ -4,11 +4,11 @@ import json
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 import io
-import socket
 from datetime import datetime
 
-# --- INTERNAL CONFIGURATION ---
-PARENT_FOLDER_ID = '1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019'
+# --- CONFIGURATION ---
+# Using the specific Folder ID provided: 1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019
+PARENT_FOLDER_ID = "1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019" 
 
 st.set_page_config(page_title="Compliance Portal", layout="wide")
 
@@ -23,30 +23,40 @@ PERMIT_DATA = [
 ]
 
 def get_drive_service():
+    """Initializes the Google Drive API service using st.secrets."""
     if "google_auth" in st.secrets:
         try:
             info = json.loads(st.secrets["google_auth"])
             creds = service_account.Credentials.from_service_account_info(info)
-            return build('drive', 'v3', credentials=creds)
-        except:
-            pass
+            # Scopes are required for Drive access
+            scoped_creds = creds.with_scopes(['https://www.googleapis.com/auth/drive.readonly'])
+            return build('drive', 'v3', credentials=scoped_creds)
+        except Exception:
+            return None
     return None
 
 def search_files(query):
+    """Searches for files within the specific parent folder ID provided."""
     service = get_drive_service()
-    if service:
-        try:
-            query_string = f"name contains '{query}' and '{PARENT_FOLDER_ID}' in parents and trashed = false"
-            results = service.files().list(
-                q=query_string,
-                fields="files(id, name, webViewLink)"
-            ).execute()
-            return results.get('files', [])
-        except:
-            pass
-    return []
+    if not service:
+        return []
+        
+    try:
+        # Search for files where the provided ID is in the parents list
+        q = f"name contains '{query}' and '{PARENT_FOLDER_ID}' in parents and trashed = false"
+        results = service.files().list(
+            q=q,
+            spaces='drive',
+            fields="nextPageToken, files(id, name, webViewLink, mimeType)",
+            pageSize=15
+        ).execute()
+        return results.get('files', [])
+    except Exception:
+        return []
 
 # --- Sidebar ---
+st.sidebar.title("Compliance App")
+# Removed connection status indicator as requested
 app_mode = st.sidebar.radio("Navigation", ["Requirements", "Documents"])
 
 # --- Main Interface ---
@@ -54,26 +64,33 @@ if app_mode == "Requirements":
     st.title("Compliance Requirements")
     
     categories = sorted(list(set(item["Category"] for item in PERMIT_DATA)))
-    selected_cat = st.selectbox("Category", categories)
+    selected_cat = st.selectbox("Select Category", categories)
     
     filtered_data = [item for item in PERMIT_DATA if item["Category"] == selected_cat]
     
     for req in filtered_data:
-        with st.expander(f"{req['Requirement']} — ${req['Cost']}"):
+        with st.expander(f"{req['Requirement']} — Estimated Cost: ${req['Cost']}"):
             st.write(f"**Authority:** {req['Authority']}")
             st.write(f"**Details:** {req['Details']}")
             
 elif app_mode == "Documents":
     st.title("Document Search")
-    truck_name = st.text_input("Enter search term", placeholder="Search by name...")
+    st.markdown(f"Searching within folder: `{PARENT_FOLDER_ID}`")
     
-    if truck_name:
-        files = search_files(truck_name)
+    search_term = st.text_input("Enter document name or keyword", placeholder="e.g. Permit, Inspection, 2024")
+    
+    if search_term:
+        with st.spinner("Searching Drive..."):
+            files = search_files(search_term)
+            
         if files:
+            st.write(f"Found {len(files)} result(s):")
             for f in files:
-                col1, col2 = st.columns([4, 1])
-                col1.write(f"📄 {f['name']}")
+                col1, col2 = st.columns([5, 1])
+                icon = "📁" if f['mimeType'] == 'application/vnd.google-apps.folder' else "📄"
+                col1.write(f"{icon} {f['name']}")
                 if 'webViewLink' in f:
-                    col2.markdown(f"[View]({f['webViewLink']})")
+                    col2.markdown(f"[Open Link]({f['webViewLink']})")
         else:
-            st.write("No documents found.")
+            st.info("No documents found matching that name in the designated folder.")
+            st.caption("Note: Ensure the Service Account has 'Viewer' access to this specific folder.")
