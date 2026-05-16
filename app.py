@@ -7,19 +7,10 @@ import io
 from datetime import datetime
 
 # --- CONFIGURATION ---
-PARENT_FOLDER_ID = '1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019'
+# Parent folder ID where all individual food truck folders are located
+PARENT_FOLDER_ID = "1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019" 
 
-st.set_page_config(page_title="Compliance Portal", layout="wide")
-
-# --- Compliance Data ---
-PERMIT_DATA = [
-    { "Category": "Health", "Requirement": "Mobile Food Vendor Permit", "Authority": "Austin Public Health", "Cost": 700, "Details": "Annual permit required for all mobile food units." },
-    { "Category": "Health", "Requirement": "Food Manager Certificate", "Authority": "ANSI Accredited", "Cost": 100, "Details": "At least one employee must be a certified food manager." },
-    { "Category": "Fire Safety", "Requirement": "Fire Inspection", "Authority": "Austin Fire Dept", "Cost": 225, "Details": "Visual inspection of extinguishers and vent hoods." },
-    { "Category": "Fire Safety", "Requirement": "Propane Pressure Test", "Authority": "Licensed Plumber", "Cost": 150, "Details": "Required annually for units using liquid propane." },
-    { "Category": "Legal", "Requirement": "Texas Sales Tax Permit", "Authority": "TX Comptroller", "Cost": 0, "Details": "Required to collect sales tax on food sales." },
-    { "Category": "Legal", "Requirement": "Zoning Approval", "Authority": "City of Austin", "Cost": 0, "Details": "Verified location for food truck operations." }
-]
+st.set_page_config(page_title="Food Truck Document Portal", layout="wide")
 
 def get_drive_service():
     """Initializes the Google Drive API service using st.secrets."""
@@ -29,73 +20,77 @@ def get_drive_service():
             creds = service_account.Credentials.from_service_account_info(info)
             scoped_creds = creds.with_scopes(['https://www.googleapis.com/auth/drive.readonly'])
             return build('drive', 'v3', credentials=scoped_creds)
-        except Exception:
+        except Exception as e:
+            st.error(f"Authentication Error: {e}")
             return None
     return None
 
-def get_files_from_food_truck_folder(truck_name):
-    """Finds the subfolder matching truck_name and returns all files within it."""
+def get_truck_documents(truck_name):
+    """
+    1. Finds the folder named exactly after the truck inside the PARENT_FOLDER_ID.
+    2. Retrieves all files from inside that specific folder.
+    """
     service = get_drive_service()
-    if not service:
-        return []
+    if not service or not truck_name:
+        return None
         
     try:
-        # 1. Find the folder named after the food truck within the parent folder
-        folder_query = f"name = '{truck_name}' and '{PARENT_FOLDER_ID}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
-        folder_results = service.files().list(q=folder_query, fields="files(id)").execute()
+        # STEP 1: Search for the folder with the name of the food truck inside the parent folder
+        folder_query = (
+            f"name = '{truck_name}' and "
+            f"mimeType = 'application/vnd.google-apps.folder' and "
+            f"'{PARENT_FOLDER_ID}' in parents and "
+            f"trashed = false"
+        )
+        
+        folder_results = service.files().list(q=folder_query, fields="files(id, name)").execute()
         folders = folder_results.get('files', [])
         
         if not folders:
-            return []
+            return "folder_not_found"
             
-        # 2. Get all files inside that specific truck folder
-        truck_folder_id = folders[0]['id']
-        file_query = f"'{truck_folder_id}' in parents and trashed = false"
+        # STEP 2: Use the ID of the found folder to find its contents
+        target_folder_id = folders[0]['id']
+        file_query = f"'{target_folder_id}' in parents and trashed = false"
+        
         file_results = service.files().list(
             q=file_query,
-            fields="files(id, name, webViewLink, mimeType)",
-            pageSize=30
+            fields="files(id, name, webViewLink, mimeType, modifiedTime)",
+            pageSize=100
         ).execute()
         
         return file_results.get('files', [])
-    except Exception:
-        return []
-
-# --- Sidebar ---
-st.sidebar.title("Compliance App")
-app_mode = st.sidebar.radio("Navigation", ["Requirements", "Documents"])
+    except Exception as e:
+        st.error(f"Error accessing Drive: {e}")
+        return None
 
 # --- Main Interface ---
-if app_mode == "Requirements":
-    st.title("Compliance Requirements")
-    
-    categories = sorted(list(set(item["Category"] for item in PERMIT_DATA)))
-    selected_cat = st.selectbox("Select Category", categories)
-    
-    filtered_data = [item for item in PERMIT_DATA if item["Category"] == selected_cat]
-    
-    for req in filtered_data:
-        with st.expander(f"{req['Requirement']} — Estimated Cost: ${req['Cost']}"):
-            st.write(f"**Authority:** {req['Authority']}")
-            st.write(f"**Details:** {req['Details']}")
+st.title("🚚 Food Truck Document Retrieval")
+st.write(f"Updated as of: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+
+truck_name_input = st.text_input("Enter Food Truck Name:", placeholder="Match the folder name exactly...")
+
+if truck_name_input:
+    with st.spinner(f"Searching for '{truck_name_input}' folder..."):
+        results = get_truck_documents(truck_name_input)
+        
+    if results == "folder_not_found":
+        st.warning(f"Could not find a folder named '{truck_name_input}' inside the master directory.")
+    elif results is not None:
+        if len(results) > 0:
+            st.success(f"Found {len(results)} documents for {truck_name_input}")
             
-elif app_mode == "Documents":
-    st.title("Document Search")
-    
-    truck_name = st.text_input("Enter Food Truck Name", placeholder="e.g. Tacos El Pastor")
-    
-    if truck_name:
-        with st.spinner(f"Retrieving documents for {truck_name}..."):
-            files = get_files_from_food_truck_folder(truck_name)
+            # Convert to DataFrame for a clean table view using pandas
+            df = pd.DataFrame(results)
+            df['Last Modified'] = pd.to_datetime(df['modifiedTime']).dt.strftime('%Y-%m-%d')
             
-        if files:
-            st.write(f"Showing documents for **{truck_name}**:")
-            for f in files:
-                col1, col2 = st.columns([5, 1])
-                icon = "📁" if f['mimeType'] == 'application/vnd.google-apps.folder' else "📄"
-                col1.write(f"{icon} {f['name']}")
-                if 'webViewLink' in f:
-                    col2.markdown(f"[View]({f['webViewLink']})")
+            # Displaying files
+            for _, row in df.iterrows():
+                with st.container():
+                    col1, col2 = st.columns([3, 1])
+                    col1.markdown(f"**{row['name']}** \n*Modified: {row['Last Modified']}*")
+                    if 'webViewLink' in row:
+                        col2.link_button("View Document", row['webViewLink'])
+                    st.divider()
         else:
-            st.info(f"No folder or documents found for '{truck_name}'.")
-            st.caption("Ensure the folder name matches exactly and the service account has access.")
+            st.info(f"The folder '{truck_name_input}' exists but is currently empty.")
