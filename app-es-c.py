@@ -390,39 +390,69 @@ def main():
 
     # Document Table
     st.subheader("Repositorio de Documentos")
-    
-    if not raw_permits:
-        st.info("No se encontraron permisos o certificaciones en el repositorio de este cliente.")
+    try:
+        # 1. Obtener de Supabase la lista oficial de los permisos obligatorios creados en la tabla permit_rules
+        rules_response = supabase.table("permit_rules").select("permit_name", "category").execute()
+        mandatory_permits = rules_response.data if rules_response.data else []
+    except Exception as e:
+        st.error(f"Error cargando reglas de cumplimiento: {e}")
+        mandatory_permits = []
+
+    if not mandatory_permits:
+        st.info("No se encontraron permisos configurados en la base de datos.")
     else:
-        # Process database array into translated UI display lists
         processed_permits = []
-        for p in raw_permits:
-            # 1. Evaluate clean automated state statuses using current system date
-            is_expired = p['expiration_date'] < date.today().strftime('%Y-%m-%d')
-            status_text = ui_labels["vencido"] if is_expired else ui_labels["aprobado"]
+        today_str = date.today().strftime('%Y-%m-%d')
+        
+        # Crear un diccionario indexado de los permisos que el vendedor YA tiene cargados para búsqueda rápida
+        uploaded_dict = {p["issuing_entity"]: p for p in raw_permits}
+        
+        # 2. Iterar sobre la lista de lo que DEBERÍA tener cada Food Truck
+        for rule in mandatory_permits:
+            permit_name = rule["permit_name"]
+            backend_key = rule["category"]
             
-            # 2. Extract specific backend mapping dictionary values
-            backend_key = p['category']
+            # Ignorar comodines genéricos de la tabla si existen
+            if permit_name in ['Generic Tax Document', 'Other Document Type', 'other']:
+                continue
+                
             translated_category = CATEGORY_TRANSLATIONS[user_lang].get(backend_key, backend_key)
             
+            # Evaluar el estado real contrastando contra la base de datos
+            if permit_name in uploaded_dict:
+                # El documento existe, verificamos su fecha
+                vendedor_permit = uploaded_dict[permit_name]
+                expiration_date = vendedor_permit["expiration_date"]
+                
+                if expiration_date < today_str:
+                    status_text = "Vencido" if user_lang == "es" else "Expired"
+                else:
+                    status_text = "Aprobado" if user_lang == "es" else "Approved"
+            else:
+                # El documento no existe en el expediente de este vendedor
+                status_text = "Faltante" if user_lang == "es" else "Missing"
+                expiration_date = "-----"
+                
             processed_permits.append({
-                ui_labels["document"]: p["issuing_entity"],
+                ui_labels["document"]: permit_name,
                 ui_labels["category"]: translated_category,
-                ui_labels["expiry"]: p["expiration_date"],
+                ui_labels["expiry"]: expiration_date,
                 ui_labels["status"]: status_text
             })
 
+        # 3. Generar el DataFrame y renderizar la tabla con estilos dinámicos
         df_display = pd.DataFrame(processed_permits)
         
-        # Styled table display condition methods
         def style_status(val):
-            is_ok = val in ['Aprobado', 'Approved']
-            color = '#d1fae5' if is_ok else '#fee2e2'
-            text_color = '#065f46' if is_ok else '#991b1b'
-            return f'background-color: {color}; color: {text_color}; font-weight: bold; border-radius: 5px'
+            if val in ['Aprobado', 'Approved']:
+                return 'background-color: #d1fae5; color: #065f46; font-weight: bold; border-radius: 5px;'
+            elif val in ['Vencido', 'Expired']:
+                return 'background-color: #fee2e2; color: #991b1b; font-weight: bold; border-radius: 5px;'
+            else: # Faltante / Missing
+                return 'background-color: #fef3c7; color: #92400e; font-weight: bold; border-radius: 5px;'
 
         st.table(df_display.style.map(style_status, subset=[ui_labels["status"]]))
-        
+   
     # Management Actions
     with st.expander("📤 Cargar y Escanear Nuevo Documento"):
         st.markdown("### 🤖 Sistema de Escaneo Automático (OCR)")
