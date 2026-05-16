@@ -590,7 +590,10 @@ def main():
 
                 # Retrieve scanned data from state cache
                 scanned = st.session_state.ocr_data
-
+                
+                if "ocr_data" not in st.session_state:
+                    st.rerun()
+                    
                 with st.form("verificacion_documento_form"):
                     st.markdown("### 🔍 Verifique los Datos Extraídos")
                     st.caption("El sistema leyó la siguiente información. Corrija cualquier dato si es necesario antes de guardar.")
