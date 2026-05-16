@@ -163,14 +163,22 @@ def main():
                         ]
                     }
                     
-                    # Append to our local data session
-                    vendors.append(new_client)
-                    st.toast(f"¡{new_name} registrado exitosamente!", icon="✅")
-                    
-                    # Force rerun so the sidebar radio selection updates immediately
-                    st.rerun()
+                    try:
+                        # Perform the cloud execution
+                        result = supabase.table("vendors").insert(new_client_payload).execute()
+                        
+                        # Verify Supabase actually returned data confirming the save
+                        if result.data:
+                            st.toast(f"¡{new_name} guardado permanentemente!", icon="✅")
+                            st.rerun()
+                        else:
+                            st.error("La base de datos rechazó el registro de forma silenciosa.")
+                    except Exception as e:
+                        # This will catch and print column name errors or type mismatches
+                        st.error(f"Error de base de datos: {e}")
                 else:
                     st.error("Por favor complete los campos obligatorios (*)")
+                    
     # ---------------------------------------------------------
     if not filtered_vendors or selected_name == "No se encontraron resultados":
         st.title("Gestión de Cumplimiento de Vendedores")
