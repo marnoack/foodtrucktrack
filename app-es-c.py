@@ -9,52 +9,50 @@ st.set_page_config(
     layout="wide"
 )
 
-# Mock Data
+# Initialize Supabase Client using Streamlit Secrets
+@st.cache_resource
+def init_supabase() -> Client:
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
+
+supabase = init_supabase()
+
+# 🔄 REPLACE YOUR OLD LOAD_DATA FUNCTION WITH THIS:
 def load_data():
-    return [
-        {
-            "id": "1",
-            "name": "The Rolling Taco",
-            "owner": "Maria Garcia",
-            "status": "Incompleto",
-            "last_audit": "2024-05-10",
-            "score": 65,
+    try:
+        # Fetch all records from your Supabase table
+        response = supabase.table("vendors").select("*").execute()
+        return response.data
+    except Exception as e:
+        st.error(f"Error cargando datos: {e}")
+        return []
+
+# ➕ INSIDE YOUR REGISTRATION FORM (REPLACE THE INTAKE LOGIC):
+# Inside main():
+# vendors = load_data() 
+# ... inside the form submission button:
+if submitted:
+    if new_name and new_owner:
+        new_client_payload = {
+            "name": new_name,
+            "owner": new_owner,
+            "status": new_status,
+            "last_audit": datetime.today().strftime('%Y-%m-%d'),
+            "score": 0,
             "permits": [
-                {"document": "Business License", "status": "Aprobado", "expiry": "2025-01-15"},
-                {"document": "Health Dept Permit", "status": "Pendiente", "expiry": "2024-06-20"},
+                {"document": "Business License", "status": "Faltante", "expiry": "N/A"},
+                {"document": "Health Dept Permit", "status": "Faltante", "expiry": "N/A"},
                 {"document": "Fire Safety Cert", "status": "Faltante", "expiry": "N/A"},
-                {"document": "Food Handler Cards", "status": "Aprobado", "expiry": "2024-12-01"}
-            ]
-        },
-        {
-            "id": "2",
-            "name": "Burger Galaxy",
-            "owner": "John Smith",
-            "status": "Cumple",
-            "last_audit": "2024-05-15",
-            "score": 98,
-            "permits": [
-                {"document": "Business License", "status": "Aprobado", "expiry": "2025-03-22"},
-                {"document": "Health Dept Permit", "status": "Aprobado", "expiry": "2025-05-01"},
-                {"document": "Fire Safety Cert", "status": "Aprobado", "expiry": "2024-11-15"},
-                {"document": "Food Handler Cards", "status": "Aprobado", "expiry": "2025-01-10"}
-            ]
-        },
-        {
-            "id": "3",
-            "name": "Sushi Stop",
-            "owner": "Kenji Sato",
-            "status": "Vencido",
-            "last_audit": "2024-04-20",
-            "score": 42,
-            "permits": [
-                {"document": "Business License", "status": "Vencido", "expiry": "2024-04-01"},
-                {"document": "Health Dept Permit", "status": "Aprobado", "expiry": "2024-09-12"},
-                {"document": "Fire Safety Cert", "status": "Aprobado", "expiry": "2024-12-30"},
-                {"document": "Food Handler Cards", "status": "Aprobado", "expiry": "2024-10-15"}
+                {"document": "Food Handler Cards", "status": "Faltante", "expiry": "N/A"}
             ]
         }
-    ]
+        
+        # Insert directly to the cloud database
+        supabase.table("vendors").insert(new_client_payload).execute()
+        st.toast(f"¡{new_name} guardado permanentemente!", icon="✅")
+        st.rerun()
+
 
 # Custom CSS for status badges
 st.markdown("""
