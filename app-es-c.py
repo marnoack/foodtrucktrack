@@ -268,9 +268,7 @@ def main():
         st.session_state.lang = "es"
 
     # 2. El selector lee y actualiza el estado en la barra lateral inmediatamente
-    lang_choice = st.sidebar.selectbox(
-        "🌐 Idioma / Language", 
-        ["Español", "English"], 
+    lang_choice = st.sidebar.selectbox( "🌐 Idioma / Language", ["Español", "English"], 
         index=0 if st.session_state.lang == "es" else 1
     )
     st.session_state.lang = "es" if lang_choice == "Español" else "en"
@@ -284,13 +282,6 @@ def main():
     
     # Sidebar Navigation
     st.sidebar.title("🚚 CompliancePro")
-    
-    # Simple Language Toggle in Sidebar UI
-    lang_choice = st.sidebar.selectbox("🌐 Idioma / Language", ["Español", "English"])
-    st.session_state.lang = "es" if lang_choice == "Español" else "en"
-
-    # 2. Forzar a user_lang a leer estrictamente del session_state
-    user_lang = st.session_state.lang
     
     st.sidebar.markdown("---")
     search_query = st.sidebar.text_input("Buscar Vendedor", placeholder="Nombre o propietario...")
