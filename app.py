@@ -7,56 +7,73 @@ import io
 import socket
 from datetime import datetime
 
-# UI Configuration
-st.set_page_config(page_title="Austin Food Truck Compliance", layout="wide")
+# --- INTERNAL CONFIGURATION ---
+PARENT_FOLDER_ID = "YOUR_GOOGLE_DRIVE_FOLDER_ID_HERE" 
+
+st.set_page_config(page_title="Compliance Portal", layout="wide")
 
 # --- Compliance Data ---
-permit_data = [
-    { "Category": "Health", "Requirement": "Mobile Food Vendor Permit", "Authority": "Austin Public Health", "Cost": 700 },
-    { "Category": "Fire Safety", "Requirement": "Fire Inspection", "Authority": "Austin Fire Dept", "Cost": 225 },
-    { "Category": "Fire Safety", "Requirement": "Propane Pressure Test", "Authority": "Licensed Plumber", "Cost": 150 },
-    { "Category": "Legal", "Requirement": "Texas Sales Tax Permit", "Authority": "TX Comptroller", "Cost": 0 }
+PERMIT_DATA = [
+    { "Category": "Health", "Requirement": "Mobile Food Vendor Permit", "Authority": "Austin Public Health", "Cost": 700, "Details": "Annual permit required for all mobile food units." },
+    { "Category": "Health", "Requirement": "Food Manager Certificate", "Authority": "ANSI Accredited", "Cost": 100, "Details": "At least one employee must be a certified food manager." },
+    { "Category": "Fire Safety", "Requirement": "Fire Inspection", "Authority": "Austin Fire Dept", "Cost": 225, "Details": "Visual inspection of extinguishers and vent hoods." },
+    { "Category": "Fire Safety", "Requirement": "Propane Pressure Test", "Authority": "Licensed Plumber", "Cost": 150, "Details": "Required annually for units using liquid propane." },
+    { "Category": "Legal", "Requirement": "Texas Sales Tax Permit", "Authority": "TX Comptroller", "Cost": 0, "Details": "Required to collect sales tax on food sales." },
+    { "Category": "Legal", "Requirement": "Zoning Approval", "Authority": "City of Austin", "Cost": 0, "Details": "Verified location for food truck operations." }
 ]
 
-# --- Google Drive Logic ---
 def get_drive_service():
-    # Using the imports you provided to build the service
     if "google_auth" in st.secrets:
-        info = json.loads(st.secrets["google_auth"])
-        creds = service_account.Credentials.from_service_account_info(info)
-        return build('drive', 'v3', credentials=creds)
+        try:
+            info = json.loads(st.secrets["google_auth"])
+            creds = service_account.Credentials.from_service_account_info(info)
+            return build('drive', 'v3', credentials=creds)
+        except:
+            pass
     return None
 
 def search_files(query):
     service = get_drive_service()
     if service:
-        # Search for files matching the name
-        results = service.files().list(
-            q=f"name contains '{query}' and trashed = false",
-            fields="files(id, name)"
-        ).execute()
-        return results.get('files', [])
+        try:
+            query_string = f"name contains '{query}' and '{PARENT_FOLDER_ID}' in parents and trashed = false"
+            results = service.files().list(
+                q=query_string,
+                fields="files(id, name, webViewLink)"
+            ).execute()
+            return results.get('files', [])
+        except:
+            pass
     return []
 
-# --- App Interface ---
-st.title("🚚 Austin Food Truck Compliance Hub")
+# --- Sidebar ---
+app_mode = st.sidebar.radio("Navigation", ["Requirements", "Documents"])
 
-# Search Section
-search_query = st.text_input("Search for Food Truck Documents", placeholder="Enter truck name...")
-if search_query:
-    files = search_files(search_query)
-    if files:
-        for f in files:
-            st.write(f"Found: {f['name']} (ID: {f['id']})")
-    else:
-        st.info("No documents found.")
-
-st.divider()
-
-# Requirements Table
-st.header("General City Requirements")
-df = pd.DataFrame(permit_data)
-st.table(df)
-
-# Footer info using your imports
-st.caption(f"Checked on: {datetime.now().strftime('%Y-%m-%d')} | Node: {socket.gethostname()}")
+# --- Main Interface ---
+if app_mode == "Requirements":
+    st.title("Compliance Requirements")
+    
+    categories = sorted(list(set(item["Category"] for item in PERMIT_DATA)))
+    selected_cat = st.selectbox("Category", categories)
+    
+    filtered_data = [item for item in PERMIT_DATA if item["Category"] == selected_cat]
+    
+    for req in filtered_data:
+        with st.expander(f"{req['Requirement']} — ${req['Cost']}"):
+            st.write(f"**Authority:** {req['Authority']}")
+            st.write(f"**Details:** {req['Details']}")
+            
+elif app_mode == "Documents":
+    st.title("Document Search")
+    truck_name = st.text_input("Enter search term", placeholder="Search by name...")
+    
+    if truck_name:
+        files = search_files(truck_name)
+        if files:
+            for f in files:
+                col1, col2 = st.columns([4, 1])
+                col1.write(f"📄 {f['name']}")
+                if 'webViewLink' in f:
+                    col2.markdown(f"[View]({f['webViewLink']})")
+        else:
+            st.write("No documents found.")
