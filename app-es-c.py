@@ -38,7 +38,7 @@ def run_ocr_processor(file_bytes, category: str) -> dict:
             if block['BlockType'] == 'LINE':
                 all_lines.append(block['Text'])
                 
-        combined_text = " ".join(all_lines).lower()
+        combined_text = " ".join(all_lines)
         
         # Basic context classification heuristics
         if "health" in combined_text or "sanitation" in combined_text:
@@ -496,7 +496,7 @@ def main():
                 
                 # Step 4: Final Confirmation
                 if st.button("Confirmar y Guardar en Expediente", type="primary", use_container_width=True):
-                    if review_entity and review_expiry:
+                    if review_entity and review_expiry and review_issue:
                         new_permit_row = {
                             "vendor_id": vendor["id"],
                             "category": backend_category_key,
