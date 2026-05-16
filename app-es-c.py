@@ -149,7 +149,7 @@ def main():
                 if new_name and new_owner:
                     # Create the basic dictionary structure matching your data
                     new_client = {
-                      #  "id": str(len(vendors) + 1),
+                        "id": str(len(vendors) + 1),
                         "name": new_name,
                         "owner": new_owner,
                         "status": new_status,
