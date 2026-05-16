@@ -29,32 +29,6 @@ def load_data():
         st.error(f"Error cargando datos: {e}")
         return []
 
-# ➕ INSIDE YOUR REGISTRATION FORM (REPLACE THE INTAKE LOGIC):
-# Inside main():
-# vendors = load_data() 
-# ... inside the form submission button:
-if submitted:
-    if new_name and new_owner:
-        new_client_payload = {
-            "name": new_name,
-            "owner": new_owner,
-            "status": new_status,
-            "last_audit": datetime.today().strftime('%Y-%m-%d'),
-            "score": 0,
-            "permits": [
-                {"document": "Business License", "status": "Faltante", "expiry": "N/A"},
-                {"document": "Health Dept Permit", "status": "Faltante", "expiry": "N/A"},
-                {"document": "Fire Safety Cert", "status": "Faltante", "expiry": "N/A"},
-                {"document": "Food Handler Cards", "status": "Faltante", "expiry": "N/A"}
-            ]
-        }
-        
-        # Insert directly to the cloud database
-        supabase.table("vendors").insert(new_client_payload).execute()
-        st.toast(f"¡{new_name} guardado permanentemente!", icon="✅")
-        st.rerun()
-
-
 # Custom CSS for status badges
 st.markdown("""
 <style>
