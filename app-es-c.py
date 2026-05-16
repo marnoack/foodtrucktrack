@@ -478,33 +478,68 @@ def main():
                     value=scanned.get("issuing_entity", "")
                 )
                 
-                # --- NEW: Convert string ISSUE DATE back to date picker object ---
+                # =====================================================================
+                from dateutil.relativedelta import relativedelta
+
+                # Determinar Fecha de Emisión
                 try:
                     default_issue_date = datetime.strptime(scanned.get("issue_date", ""), "%Y-%m-%d").date()
                 except (ValueError, TypeError):
-                    default_issue_date = datetime.today().date()
-                    
+                    try:
+                        default_issue_date = datetime.strptime(scanned.get("issue_date", ""), "%m/%d/%Y").date()
+                    except (ValueError, TypeError):
+                        default_issue_date = date.today()
+
                 review_issue = st.date_input("Fecha de Emisión Detectada *", value=default_issue_date)
-                
-                # Convert string EXPIRATION DATE back to date picker object
-                try:
-                    default_expiry_date = datetime.strptime(scanned.get("expiration_date", ""), "%Y-%m-%d").date()
-                except (ValueError, TypeError):
-                    default_expiry_date = None
-                    
+
+                # Calcular o Determinar Fecha de Vencimiento
+                default_expiry_date = None
+
+                if scanned.get("expiration_date"):
+                    try:
+                        default_expiry_date = datetime.strptime(scanned.get("expiration_date", ""), "%Y-%m-%d").date()
+                    except (ValueError, TypeError):
+                        try:
+                            default_expiry_date = datetime.strptime(scanned.get("expiration_date", ""), "%m/%d/%Y").date()
+                        except (ValueError, TypeError):
+                            default_expiry_date = None
+
+                # Si el OCR no detectó vencimiento, consultamos a Supabase con la estrategia de doble capa
+                if not scanned.get("expiration_date") or default_expiry_date is None:
+                    try:
+                        # Capa 1: Buscar por el nombre específico del documento (ej: 'Food Manager Certificate')
+                        rule_response = supabase.table("permit_rules").select("validity_months").eq("permit_name", review_entity).execute()
+        
+                        if rule_response.data:
+                            months_to_add = rule_response.data[0]["validity_months"]
+                        else:
+                            # Capa 2: Respaldo por categoría general
+                            fallback_response = supabase.table("permit_rules").select("validity_months").eq("category", backend_category_key).limit(1).execute()
+                            if fallback_response.data:
+                                months_to_add = fallback_response.data[0]["validity_months"]
+                            else:
+                                months_to_add = 12 
+                    except Exception as e:
+                        months_to_add = 12
+                        st.warning(f"Error al conectar con las reglas de Supabase: {e}")
+
+                    # Calcular sumando los meses dinámicos a la fecha de emisión
+                    default_expiry_date = review_issue + relativedelta(months=months_to_add)
+
                 review_expiry = st.date_input("Fecha de Vencimiento Detectada *", value=default_expiry_date)
-                
-                # Step 4: Final Confirmation
+                # =====================================================================
+
+
+                # 2. El botón de confirmación que modificamos en el primer paso va inmediatamente después
                 if st.button("Confirmar y Guardar en Expediente", type="primary", use_container_width=True):
                     if review_entity and review_expiry and review_issue:
                         new_permit_row = {
-                            "vendor_id": vendor["id"],
-                            "category": backend_category_key,
-                            "issuing_entity": review_entity,
-                            "issue_date": review_issue.strftime('%Y-%m-%d'),
-                            "expiration_date": review_expiry.strftime('%Y-%m-%d')
+                             "vendor_id": vendor["id"],
+                             "category": backend_category_key,
+                             "issuing_entity": review_entity,
+                             "issue_date": review_issue.strftime('%Y-%m-%d'), 
+                             "expiration_date": review_expiry.strftime('%Y-%m-%d')
                         }
-                        
                         try:
                             result = supabase.table("vendor_permits").insert(new_permit_row).execute()
                             if result.data:
