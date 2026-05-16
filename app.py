@@ -7,109 +7,123 @@ import io
 import socket
 from datetime import datetime
 
-# --- CONFIGURATION ---
-# The ID of the parent folder containing all food truck folders
-PARENT_FOLDER_ID = '1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019'
-#PARENT_FOLDER_ID = '1tFAdApE1DwQpgvxh0CKU_3j5UfHhh5PH'
+# --- CONFIGURATION (UNCHANGED) ---
+PARENT_FOLDER_ID = '1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019' 
 
-st.set_page_config(page_title="Gestión de Cumplimiento", layout="wide")
+st.set_page_config(page_title="Austin Food Truck Compliance", layout="wide")
 
-# --- GOOGLE DRIVE LOGIC ---
+# --- NAVIGATION LOGIC ---
+if 'page' not in st.session_state:
+    st.session_state.page = 'Requirements'
+
+def set_page(page_name):
+    st.session_state.page = page_name
+
+# Sidebar for Navigation
+with st.sidebar:
+    st.title("🚛 Mobile Food Admin")
+    st.button("📋 Permit Requirements", on_click=set_page, args=('Requirements',), use_container_width=True)
+    st.button("📂 Digital Document Locker", on_click=set_page, args=('Locker',), use_container_width=True)
+    st.divider()
+    st.caption(f"System Parent ID: `{PARENT_FOLDER_ID[:8]}...`")
+
+# --- GOOGLE DRIVE LOGIC (UNCHANGED) ---
 
 def get_gdrive_service():
-    """Authenticates and returns the Google Drive service."""
     try:
         info = st.secrets["gcp_service_account"]
         credentials = service_account.Credentials.from_service_account_info(info)
         return build('drive', 'v3', credentials=credentials)
     except Exception as e:
-        st.error(f"❌ configuration Error: {e}")
+        st.error(f"❌ Connection Error: {e}. Check Streamlit Secrets.")
         st.stop()
 
 def find_truck_folder(service, truck_name):
-    """Searches for a folder matching the truck name inside the parent folder."""
     query = (f"name = '{truck_name}' and "
              f"'{PARENT_FOLDER_ID}' in parents and "
              f"mimeType = 'application/vnd.google-apps.folder' and "
              f"trashed = false")
-    
     results = service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
     files = results.get('files', [])
     return files[0]['id'] if files else None
 
 def list_files_in_folder(service, folder_id):
-    """Lists all files in the specific truck's folder."""
     query = f"'{folder_id}' in parents and trashed = false"
     results = service.files().list(q=query, spaces='drive', fields='files(id, name, modifiedTime, webViewLink)').execute()
     return results.get('files', [])
 
-# --- DATA PROCESSING ---
+# --- PAGE ROUTING ---
 
-def apply_status_style(val):
-    """Styles the compliance status."""
-    if val == 'Active': return 'color: #059669; font-weight: bold'
-    if val == 'Expired': return 'color: #dc2626; font-weight: bold'
-    return ''
+if st.session_state.page == 'Requirements':
+    # NEW: Austin Texas Permit Guide
+    st.title("📋 Austin Food Truck Permit Requirements")
+    st.markdown("Below are the mandatory permits and licenses required to operate a food truck in Austin, Texas.")
 
-# --- MAIN APP UI ---
+    col1, col2 = st.columns([2, 1])
 
-st.title("🚚 Food Truck Compliance Portal")
-st.markdown("Search for a truck to view its digital document locker from Google Drive.")
+    with col1:
+        with st.expander("1. Austin Public Health (APH) Permit", expanded=True):
+            st.markdown("""
+            **Permit Name:** Mobile Food Establishment (MFE) Permit.
+            - **Application:** Must submit a completed APH application and fee.
+            - **Inspection:** A physical inspection of the unit is required.
+            - **Central Preparation Facility (CPF):** You must provide a signed contract with a licensed commissary.
+            - [Official APH Website](https://www.austintexas.gov/department/mobile-food-establishments)
+            """)
 
-# Search Input
-search_query = st.text_input("Enter Truck Name (e.g., HILL COUNTRY CULINARY):", placeholder="Exact name of the folder in Drive")
+        with st.expander("2. Fire Marshal Inspection (AFD)"):
+            st.markdown("""
+            **Requirement:** Annual safety inspection by the Austin Fire Department.
+            - **Propane:** Requires a specific pressure test.
+            - **Fire Suppression:** Vent hoods must be inspected and tagged.
+            - **Extinguishers:** Must have 2A10BC and Class K (if using grease).
+            """)
 
-if search_query:
-    service = get_gdrive_service()
-    
-    with st.spinner(f"Searching for '{search_query}' folder..."):
-        folder_id = find_truck_folder(service, search_query)
+        with st.expander("3. State of Texas Sales Tax Permit"):
+            st.markdown("""
+            **Requirement:** Issued by the Texas Comptroller's Office.
+            - Necessary to collect and remit sales tax.
+            - Must be displayed prominently on the truck.
+            """)
+
+        with st.expander("4. Food Manager Certificate"):
+            st.markdown("""
+            **Requirement:** At least one person in charge must have a City of Austin Food Manager Certificate.
+            - All other employees must have a Basic Food Handler registration.
+            """)
+
+    with col2:
+        st.info("💡 **Compliance Tip**")
+        st.write("Ensure your CPF (Commissary) is in good standing before applying for your APH permit, as they will verify the facility license.")
+        st.image("https://www.austintexas.gov/sites/default/files/styles/standard_listing/public/images/Health_0.png?itok=Mh7rZ7iO", width=150)
+
+elif st.session_state.page == 'Locker':
+    # ORIGINAL: Document Locker logic
+    st.title("📂 Digital Document Locker")
+    st.markdown("Search for your truck folder in Google Drive to verify uploaded compliance docs.")
+
+    search_query = st.text_input("Truck Folder Name:", placeholder="e.g., HILL COUNTRY CULINARY")
+
+    if search_query:
+        service = get_gdrive_service()
+        with st.spinner("Searching Google Drive..."):
+            folder_id = find_truck_folder(service, search_query)
         
-    if folder_id:
-        st.success(f"✅ Folder found for **{search_query}**")
-        
-        # Fetch files from that folder
-        files = list_files_in_folder(service, folder_id)
-        
-        if files:
-            # Create a dataframe for display
-            data = []
-            for f in files:
-                # Mock compliance logic based on file name or date
-                # In a real app, you might parse the 'modifiedTime'
-                is_expired = "expired" in f['name'].lower()
+        if folder_id:
+            files = list_files_in_folder(service, folder_id)
+            if files:
+                data = [{
+                    "Document": f['name'],
+                    "Last Sync": f['modifiedTime'][:10],
+                    "Drive Link": f['webViewLink']
+                } for f in files]
                 
-                data.append({
-                    "Document Name": f['name'],
-                    "Last Updated": f['modifiedTime'].split('T')[0],
-                    "Status": "Expired" if is_expired else "Active",
-                    "Link": f['webViewLink']
-                })
-            
-            df = pd.DataFrame(data)
-            
-            # Display Metrics
-            c1, c2 = st.columns(2)
-            c1.metric("Total Documents", len(df))
-            c2.metric("Expired Alerts", len(df[df['Status'] == 'Expired']))
-
-            # Display interactive table
-            st.subheader("Digital Document Locker")
-            st.dataframe(
-                df,
-                use_container_width=True,
-                column_config={
-                    "Link": st.column_config.LinkColumn("View in Drive")
-                }
-            )
-            
+                st.dataframe(
+                    pd.DataFrame(data),
+                    use_container_width=True,
+                    column_config={"Drive Link": st.column_config.LinkColumn()}
+                )
+            else:
+                st.info("Folder found, but no files were detected inside.")
         else:
-            st.warning("The folder was found, but it is currently empty.")
-    else:
-        st.error(f"No folder named '{search_query}' was found in the parent directory.")
-
-# Sidebar info
-st.sidebar.header("System Settings")
-st.sidebar.write(f"Parent Folder: `{PARENT_FOLDER_ID}`")
-if st.sidebar.button("Clear Cache"):
-    st.cache_data.clear()
+            st.error(f"Folder '{search_query}' not found in the parent directory.")
