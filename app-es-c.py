@@ -159,13 +159,6 @@ CATEGORY_TRANSLATIONS = {
     }
 }
 
-# Setup language state (from user toggle or default)
-if "lang" not in st.session_state:
-    st.session_state.lang = "es"  # Defaulting to Spanish based on dashboard style
-
-user_lang = st.session_state.lang
-ui_labels = CATEGORY_TRANSLATIONS[user_lang]["ui"]
-
 # Page configuration
 st.set_page_config(
     page_title="Panel de Control CompliancePro",
@@ -267,6 +260,26 @@ def show_license_directory():
 
 # Application Logic
 def main():
+    # =====================================================================
+    # SECCIÓN MODIFICADA: Configuración de Idioma e Interfaz
+    # =====================================================================
+    # 1. Inicializar el estado por defecto si no existe
+    if "lang" not in st.session_state:
+        st.session_state.lang = "es"
+
+    # 2. El selector lee y actualiza el estado en la barra lateral inmediatamente
+    lang_choice = st.sidebar.selectbox(
+        "🌐 Idioma / Language", 
+        ["Español", "English"], 
+        index=0 if st.session_state.lang == "es" else 1
+    )
+    st.session_state.lang = "es" if lang_choice == "Español" else "en"
+
+    # 3. Asignar las variables globales de traducción basándose en el cambio de arriba
+    user_lang = st.session_state.lang
+    ui_labels = CATEGORY_TRANSLATIONS[user_lang]["ui"]
+    # =====================================================================
+    
     vendors = load_data()
     
     # Sidebar Navigation
