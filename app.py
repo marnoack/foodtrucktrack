@@ -210,7 +210,7 @@ def main():
         text_color = '#065f46' if val == 'Approved' else '#991b1b' if val in ['Expired', 'Missing'] else '#92400e'
         return f'background-color: {color}; color: {text_color}; font-weight: bold; border-radius: 5px'
 
-    st.table(df.style.applymap(style_status, subset=['status']))
+    st.table(df.style.map(style_status, subset=['status']))
 
     # Management Actions
     with st.expander("Update Records & Notes"):
