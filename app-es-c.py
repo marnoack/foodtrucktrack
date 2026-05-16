@@ -4,7 +4,66 @@ from datetime import datetime, date
 from supabase import create_client, Client
 import boto3
 import re
+import io
+import time
+import base64
+import requests
+from PIL import Image
 
+# Pull your Apps Script URL from Streamlit Secrets
+SCRIPT_URL = st.secrets.get("gcp_service_account", {}).get("bucket_name")
+
+def upload_to_drive(uploaded_file, original_filename):
+    """Sends compressed image or raw PDF to Google Apps Script using its original filename"""
+    if not SCRIPT_URL:
+        st.error("Configura el URL del script en los Secrets para guardar documentos.")
+        return None 
+    try:
+        # Determine file type by checking the extension
+        is_pdf = original_filename.lower().endswith('.pdf')
+        
+        if is_pdf:
+            # For PDFs, skip compression and grab the raw bytes directly
+            file_bytes = uploaded_file.getvalue()
+        else:
+            # --- COMPRESIÓN DE IMAGEN (SÓLO PARA JPG/PNG) ---
+            img = Image.open(uploaded_file)
+            
+            max_size = 1024
+            if img.width > max_size:
+                w_percent = (max_size / float(img.width))
+                h_size = int((float(img.height) * float(w_percent)))
+                img = img.resize((max_size, h_size), Image.Resampling.LANCZOS)
+            
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+                
+            buffer = io.BytesIO()
+            img.save(buffer, format="JPEG", quality=70, optimize=True)
+            file_bytes = buffer.getvalue()
+            # --- END COMPRESIÓN DE IMAGEN ---
+        
+        # Encode whichever file type we processed into Base64
+        file_base64 = base64.b64encode(file_bytes).decode()
+        
+        payload = {
+            "image": file_base64, # Keeping "image" payload key so your Apps Script doesn't have to change
+            "filename": original_filename 
+        }
+        
+        for delay in [1, 2]:
+            try:
+                response = requests.post(SCRIPT_URL, json=payload, timeout=20)
+                if response.status_code == 200:
+                    return response.json().get("url")
+            except Exception:
+                time.sleep(delay)
+        return None
+    except Exception as e:
+        # Generic update to reflect that both formats are supported
+        st.error(f"Error al procesar o comprimir el archivo (PDF/Imagen): {e}")
+        return None
+        
 def run_ocr_processor(file_bytes, category: str) -> dict:
     """
     Processes raw file bytes directly with AWS Textract without saving to S3,
@@ -530,98 +589,107 @@ def main():
 
                 # Retrieve scanned data from state cache
                 scanned = st.session_state.ocr_data
-                
-                st.markdown("### 🔍 Verifique los Datos Extraídos")
-                st.caption("El sistema leyó la siguiente información. Corrija cualquier dato si es necesario antes de guardar.")
-                
-                # Step 3: Prefill fields with OCR outputs.
-                review_entity = st.text_input(
-                    "Entidad Emisora / Nombre del Documento Detectado *", 
-                    value=scanned.get("issuing_entity", "")
-                )
-                
-                # =====================================================================
-                from dateutil.relativedelta import relativedelta
 
-                # Determinar Fecha de Emisión
-                try:
-                    default_issue_date = datetime.strptime(scanned.get("issue_date", ""), "%Y-%m-%d").date()
-                except (ValueError, TypeError):
+                with st.form("verificacion_documento_form"):
+                    st.markdown("### 🔍 Verifique los Datos Extraídos")
+                    st.caption("El sistema leyó la siguiente información. Corrija cualquier dato si es necesario antes de guardar.")
+                
+                    # Step 3: Prefill fields with OCR outputs.
+                    review_entity = st.text_input(
+                        "Entidad Emisora / Nombre del Documento Detectado *", 
+                        value=scanned.get("issuing_entity", "")
+                    )
+                
+                    # =====================================================================
+                    from dateutil.relativedelta import relativedelta
+
+                    # Determinar Fecha de Emisión
                     try:
-                        default_issue_date = datetime.strptime(scanned.get("issue_date", ""), "%m/%d/%Y").date()
-                    except (ValueError, TypeError):
-                        default_issue_date = date.today()
-
-                review_issue = st.date_input("Fecha de Emisión Detectada *", value=default_issue_date)
-
-                # Calcular o Determinar Fecha de Vencimiento
-                default_expiry_date = None
-
-                if scanned.get("expiration_date"):
-                    try:
-                        default_expiry_date = datetime.strptime(scanned.get("expiration_date", ""), "%Y-%m-%d").date()
+                        default_issue_date = datetime.strptime(scanned.get("issue_date", ""), "%Y-%m-%d").date()
                     except (ValueError, TypeError):
                         try:
-                            default_expiry_date = datetime.strptime(scanned.get("expiration_date", ""), "%m/%d/%Y").date()
+                            default_issue_date = datetime.strptime(scanned.get("issue_date", ""), "%m/%d/%Y").date()
                         except (ValueError, TypeError):
-                            default_expiry_date = None
+                            default_issue_date = date.today()
 
-                # Si el OCR no detectó vencimiento, consultamos a Supabase con la estrategia de doble capa
-                if not scanned.get("expiration_date") or default_expiry_date is None:
-                    try:
-                        # Capa 1: Buscar por el nombre específico del documento (ej: 'Food Manager Certificate')
-                        rule_response = supabase.table("permit_rules").select("validity_months").eq("permit_name", review_entity).execute()
-        
-                        if rule_response.data:
-                            months_to_add = rule_response.data[0]["validity_months"]
-                        else:
-                            # Capa 2: Respaldo por categoría general
-                            fallback_response = supabase.table("permit_rules").select("validity_months").eq("category", backend_category_key).limit(1).execute()
-                            if fallback_response.data:
-                                months_to_add = fallback_response.data[0]["validity_months"]
-                            else:
-                                months_to_add = 12 
-                    except Exception as e:
-                        months_to_add = 12
-                        st.warning(f"Error al conectar con las reglas de Supabase: {e}")
+                    review_issue = st.date_input("Fecha de Emisión Detectada *", value=default_issue_date)
 
-                    # Calcular sumando los meses dinámicos a la fecha de emisión
-                    default_expiry_date = review_issue + relativedelta(months=months_to_add)
+                    # Calcular o Determinar Fecha de Vencimiento
+                    default_expiry_date = None
 
-                review_expiry = st.date_input("Fecha de Vencimiento Detectada *", value=default_expiry_date)
-                # =====================================================================
-
-
-                # 2. El botón de confirmación que modificamos en el primer paso va inmediatamente después
-                if st.button("Confirmar y Guardar en Expediente", type="primary", use_container_width=True):
-                    if review_entity and review_expiry and review_issue:
-                        # Buscamos el ID correspondiente de la regla para inyectarlo en la llave foránea
-                        matched_rule_id = None
-                        if mandatory_permits:
-                            matched_rule = next((r for r in mandatory_permits if r["permit_name"] == review_entity), None)
-                            if matched_rule:
-                                matched_rule_id = matched_rule["id"]
-                                
-                        new_permit_row = {
-                             "vendor_id": vendor["id"],
-                             "permit_id": matched_rule_id,
-                             "category": backend_category_key,
-                             "issuing_entity": review_entity,
-                             "issue_date": review_issue.strftime('%Y-%m-%d'), 
-                             "expiration_date": review_expiry.strftime('%Y-%m-%d')
-                        }
+                    if scanned.get("expiration_date"):
                         try:
-                            result = supabase.table("vendor_permits").insert(new_permit_row).execute()
-                            if result.data:
-                                # Clear OCR cache on successful upload to reset state completely
-                                del st.session_state.ocr_data
-                                del st.session_state.current_file
-                                st.toast("¡Documento guardado y verificado en la base de datos!", icon="✅")
-                                st.rerun()
+                            default_expiry_date = datetime.strptime(scanned.get("expiration_date", ""), "%Y-%m-%d").date()
+                        except (ValueError, TypeError):
+                            try:
+                                default_expiry_date = datetime.strptime(scanned.get("expiration_date", ""), "%m/%d/%Y").date()
+                            except (ValueError, TypeError):
+                                default_expiry_date = None
+
+                    # Si el OCR no detectó vencimiento, consultamos a Supabase con la estrategia de doble capa
+                    if not scanned.get("expiration_date") or default_expiry_date is None:
+                        try:
+                            # Capa 1: Buscar por el nombre específico del documento (ej: 'Food Manager Certificate')
+                            rule_response = supabase.table("permit_rules").select("validity_months").eq("permit_name", review_entity).execute()
+        
+                            if rule_response.data:
+                                months_to_add = rule_response.data[0]["validity_months"]
+                            else:
+                                # Capa 2: Respaldo por categoría general
+                                fallback_response = supabase.table("permit_rules").select("validity_months").eq("category", backend_category_key).limit(1).execute()
+                                if fallback_response.data:
+                                    months_to_add = fallback_response.data[0]["validity_months"]
+                                else:
+                                    months_to_add = 12 
                         except Exception as e:
-                            st.error(f"Error al guardar registros: {e}")
-                    else:
-                        st.error("Los campos requeridos no pueden estar vacíos.")
+                            months_to_add = 12
+                            st.warning(f"Error al conectar con las reglas de Supabase: {e}")
+
+                        # Calcular sumando los meses dinámicos a la fecha de emisión
+                        default_expiry_date = review_issue + relativedelta(months=months_to_add)
+
+                    review_expiry = st.date_input("Fecha de Vencimiento Detectada *", value=default_expiry_date)
+                    # =====================================================================
+                
+                    # 3. EL BOTÓN DE SUBMIT AL FINAL (Controla la ejecución)
+                    submitted = st.form_submit_button("Confirmar y Guardar en Expediente", type="primary", use_container_width=True)
+                    
+                    if submitted:
+
+               # # 2. El botón de confirmación que modificamos en el primer paso va inmediatamente después
+              #  if st.button("Confirmar y Guardar en Expediente", type="primary", use_container_width=True):
+                        if review_entity and review_expiry and review_issue:
+                            # A. Los datos ya están verificados, AHORA subimos a Drive
+                            with st.spinner("📤 Datos verificados. Subiendo archivo a Google Drive..."):
+                                drive_url = upload_to_drive(uploaded_file, uploaded_file.name)
+                                
+                            # Buscamos el ID correspondiente de la regla para inyectarlo en la llave foránea
+                            matched_rule_id = None
+                            if mandatory_permits:
+                                matched_rule = next((r for r in mandatory_permits if r["permit_name"] == review_entity), None)
+                                if matched_rule:
+                                    matched_rule_id = matched_rule["id"]
+                                
+                            new_permit_row = {
+                                 "vendor_id": vendor["id"],
+                                 "permit_id": matched_rule_id,
+                                 "category": backend_category_key,
+                                 "issuing_entity": review_entity,
+                                 "issue_date": review_issue.strftime('%Y-%m-%d'), 
+                                 "expiration_date": review_expiry.strftime('%Y-%m-%d')
+                            }
+                            try:
+                                result = supabase.table("vendor_permits").insert(new_permit_row).execute()
+                                if result.data:
+                                    # Clear OCR cache on successful upload to reset state completely
+                                    del st.session_state.ocr_data
+                                    del st.session_state.current_file
+                                    st.toast("¡Documento guardado y verificado en la base de datos!", icon="✅")
+                                    st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al guardar registros: {e}")
+                        else:
+                            st.error("Los campos requeridos no pueden estar vacíos.")
 
     # Critical Alerts
     if vendor['status'] == "Vencido":
