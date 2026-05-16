@@ -7,7 +7,6 @@ import io
 from datetime import datetime
 
 # --- CONFIGURATION ---
-# Using the specific Folder ID provided: 1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019
 PARENT_FOLDER_ID = "1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019" 
 
 st.set_page_config(page_title="Compliance Portal", layout="wide")
@@ -28,35 +27,42 @@ def get_drive_service():
         try:
             info = json.loads(st.secrets["google_auth"])
             creds = service_account.Credentials.from_service_account_info(info)
-            # Scopes are required for Drive access
             scoped_creds = creds.with_scopes(['https://www.googleapis.com/auth/drive.readonly'])
             return build('drive', 'v3', credentials=scoped_creds)
         except Exception:
             return None
     return None
 
-def search_files(query):
-    """Searches for files within the specific parent folder ID provided."""
+def get_files_from_food_truck_folder(truck_name):
+    """Finds the subfolder matching truck_name and returns all files within it."""
     service = get_drive_service()
     if not service:
         return []
         
     try:
-        # Search for files where the provided ID is in the parents list
-        q = f"name contains '{query}' and '{PARENT_FOLDER_ID}' in parents and trashed = false"
-        results = service.files().list(
-            q=q,
-            spaces='drive',
-            fields="nextPageToken, files(id, name, webViewLink, mimeType)",
-            pageSize=15
+        # 1. Find the folder named after the food truck within the parent folder
+        folder_query = f"name = '{truck_name}' and '{PARENT_FOLDER_ID}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        folder_results = service.files().list(q=folder_query, fields="files(id)").execute()
+        folders = folder_results.get('files', [])
+        
+        if not folders:
+            return []
+            
+        # 2. Get all files inside that specific truck folder
+        truck_folder_id = folders[0]['id']
+        file_query = f"'{truck_folder_id}' in parents and trashed = false"
+        file_results = service.files().list(
+            q=file_query,
+            fields="files(id, name, webViewLink, mimeType)",
+            pageSize=30
         ).execute()
-        return results.get('files', [])
+        
+        return file_results.get('files', [])
     except Exception:
         return []
 
 # --- Sidebar ---
 st.sidebar.title("Compliance App")
-# Removed connection status indicator as requested
 app_mode = st.sidebar.radio("Navigation", ["Requirements", "Documents"])
 
 # --- Main Interface ---
@@ -75,22 +81,21 @@ if app_mode == "Requirements":
             
 elif app_mode == "Documents":
     st.title("Document Search")
-    st.markdown(f"Searching within folder: `{PARENT_FOLDER_ID}`")
     
-    search_term = st.text_input("Enter document name or keyword", placeholder="e.g. Permit, Inspection, 2024")
+    truck_name = st.text_input("Enter Food Truck Name", placeholder="e.g. Tacos El Pastor")
     
-    if search_term:
-        with st.spinner("Searching Drive..."):
-            files = search_files(search_term)
+    if truck_name:
+        with st.spinner(f"Retrieving documents for {truck_name}..."):
+            files = get_files_from_food_truck_folder(truck_name)
             
         if files:
-            st.write(f"Found {len(files)} result(s):")
+            st.write(f"Showing documents for **{truck_name}**:")
             for f in files:
                 col1, col2 = st.columns([5, 1])
                 icon = "📁" if f['mimeType'] == 'application/vnd.google-apps.folder' else "📄"
                 col1.write(f"{icon} {f['name']}")
                 if 'webViewLink' in f:
-                    col2.markdown(f"[Open Link]({f['webViewLink']})")
+                    col2.markdown(f"[View]({f['webViewLink']})")
         else:
-            st.info("No documents found matching that name in the designated folder.")
-            st.caption("Note: Ensure the Service Account has 'Viewer' access to this specific folder.")
+            st.info(f"No folder or documents found for '{truck_name}'.")
+            st.caption("Ensure the folder name matches exactly and the service account has access.")
