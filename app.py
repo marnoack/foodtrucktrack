@@ -1,90 +1,114 @@
 import streamlit as st
 import pandas as pd
+import json
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+import io
+import socket
 from datetime import datetime
 
-# --- APP CONFIGURATION ---
-st.set_page_config(
-    page_title="Food Truck Compliance Portal",
-    page_icon="🚚",
-    layout="wide"
-)
+# --- CONFIGURATION ---
+# The ID of the parent folder containing all food truck folders
+PARENT_FOLDER_ID = '1bCy76WtDQPPxF-RROo0whaA1xBrFoA0l' 
 
-# --- MOCK DATA ---
-# This dictionary simulates our database of food truck licenses
-COMPLIANCE_DATABASE = {
-    "HILL COUNTRY CULINARY": [
-        {"Document": "Health Department Permit", "Status": "Active", "Expiration": "2024-12-31"},
-        {"Document": "Fire Marshal Inspection", "Status": "Active", "Expiration": "2025-05-15"},
-        {"Document": "Propane Safety Certificate", "Status": "Expired", "Expiration": "2023-11-01"},
-        {"Document": "General Liability Insurance", "Status": "Active", "Expiration": "2024-09-20"},
-        {"Document": "Food Manager Certificate", "Status": "Pending", "Expiration": "N/A"}
-    ],
-    "TACO TRADITION": [
-        {"Document": "Health Department Permit", "Status": "Active", "Expiration": "2024-11-15"},
-        {"Document": "General Liability Insurance", "Status": "Expired", "Expiration": "2024-01-10"}
-    ]
-}
+st.set_page_config(page_title="Gestión de Cumplimiento", layout="wide")
+
+# --- GOOGLE DRIVE LOGIC ---
+
+def get_gdrive_service():
+    """Authenticates and returns the Google Drive service."""
+    try:
+        info = st.secrets["gcp_service_account"]
+        credentials = service_account.Credentials.from_service_account_info(info)
+        return build('drive', 'v3', credentials=credentials)
+    except Exception as e:
+        st.error(f"❌ configuration Error: {e}")
+        st.stop()
+
+def find_truck_folder(service, truck_name):
+    """Searches for a folder matching the truck name inside the parent folder."""
+    query = (f"name = '{truck_name}' and "
+             f"'{PARENT_FOLDER_ID}' in parents and "
+             f"mimeType = 'application/vnd.google-apps.folder' and "
+             f"trashed = false")
+    
+    results = service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
+    files = results.get('files', [])
+    return files[0]['id'] if files else None
+
+def list_files_in_folder(service, folder_id):
+    """Lists all files in the specific truck's folder."""
+    query = f"'{folder_id}' in parents and trashed = false"
+    results = service.files().list(q=query, spaces='drive', fields='files(id, name, modifiedTime, webViewLink)').execute()
+    return results.get('files', [])
+
+# --- DATA PROCESSING ---
 
 def apply_status_style(val):
-    """Adds color coding to the Status column."""
-    color = 'black'
-    if val == 'Active':
-        color = '#059669' # Green
-    elif val == 'Expired':
-        color = '#dc2626' # Red
-    elif val == 'Pending':
-        color = '#d97706' # Amber
-    return f'color: {color}; font-weight: bold'
+    """Styles the compliance status."""
+    if val == 'Active': return 'color: #059669; font-weight: bold'
+    if val == 'Expired': return 'color: #dc2626; font-weight: bold'
+    return ''
 
-def main():
-    st.title("🚚 Compliance & Licensing Portal")
-    st.markdown("Internal system for tracking food truck certifications and expiration dates.")
+# --- MAIN APP UI ---
 
-    # Search Section
-    st.divider()
-    search_query = st.text_input("Enter Truck Name:", placeholder="e.g., HILL COUNTRY CULINARY").strip().upper()
+st.title("🚚 Food Truck Compliance Portal")
+st.markdown("Search for a truck to view its digital document locker from Google Drive.")
 
-    if search_query:
-        if search_query in COMPLIANCE_DATABASE:
-            st.success(f"Records found for **{search_query}**")
+# Search Input
+search_query = st.text_input("Enter Truck Name (e.g., HILL COUNTRY CULINARY):", placeholder="Exact name of the folder in Drive")
+
+if search_query:
+    service = get_gdrive_service()
+    
+    with st.spinner(f"Searching for '{search_query}' folder..."):
+        folder_id = find_truck_folder(service, search_query)
+        
+    if folder_id:
+        st.success(f"✅ Folder found for **{search_query}**")
+        
+        # Fetch files from that folder
+        files = list_files_in_folder(service, folder_id)
+        
+        if files:
+            # Create a dataframe for display
+            data = []
+            for f in files:
+                # Mock compliance logic based on file name or date
+                # In a real app, you might parse the 'modifiedTime'
+                is_expired = "expired" in f['name'].lower()
+                
+                data.append({
+                    "Document Name": f['name'],
+                    "Last Updated": f['modifiedTime'].split('T')[0],
+                    "Status": "Expired" if is_expired else "Active",
+                    "Link": f['webViewLink']
+                })
             
-            # Formatting data for display
-            records = COMPLIANCE_DATABASE[search_query]
-            df = pd.DataFrame(records)
+            df = pd.DataFrame(data)
             
             # Display Metrics
-            col1, col2, col3 = st.columns(3)
-            active_count = len([r for r in records if r['Status'] == 'Active'])
-            expired_count = len([r for r in records if r['Status'] == 'Expired'])
+            c1, c2 = st.columns(2)
+            c1.metric("Total Documents", len(df))
+            c2.metric("Expired Alerts", len(df[df['Status'] == 'Expired']))
+
+            # Display interactive table
+            st.subheader("Digital Document Locker")
+            st.dataframe(
+                df,
+                use_container_width=True,
+                column_config={
+                    "Link": st.column_config.LinkColumn("View in Drive")
+                }
+            )
             
-            col1.metric("Active Licenses", active_count)
-            col2.metric("Expired/Alerts", expired_count, delta_color="inverse")
-            col3.metric("Last Audit", datetime.now().strftime("%b %d, %Y"))
-
-            # Styled Table
-            st.subheader("License Details")
-            styled_df = df.style.applymap(apply_status_style, subset=['Status'])
-            st.table(styled_df)
-
-            # Action Area
-            st.subheader("Administrative Actions")
-            action_col1, action_col2 = st.columns(2)
-            with action_col1:
-                if st.button("Download Compliance Report (PDF)"):
-                    st.write("Generating report...")
-            with action_col2:
-                if st.button("Email Expiration Alerts to Owner"):
-                    st.write("Alerts sent successfully.")
-
         else:
-            st.error(f"No records found for '{search_query}'. Please check the spelling or contact the administrator.")
+            st.warning("The folder was found, but it is currently empty.")
     else:
-        st.info("Waiting for input... please enter a truck name above to view compliance status.")
+        st.error(f"No folder named '{search_query}' was found in the parent directory.")
 
-    # Sidebar info
-    st.sidebar.header("System Status")
-    st.sidebar.info("Database: Connected")
-    st.sidebar.write(f"Logged in as: Admin_User")
-
-if __name__ == "__main__":
-    main()
+# Sidebar info
+st.sidebar.header("System Settings")
+st.sidebar.write(f"Parent Folder: `{PARENT_FOLDER_ID}`")
+if st.sidebar.button("Clear Cache"):
+    st.cache_data.clear()
