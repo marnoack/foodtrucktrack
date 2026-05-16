@@ -1,184 +1,166 @@
 import streamlit as st
 import pandas as pd
-import json
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-import io
-import socket
 from datetime import datetime
 
-# --- CONFIGURATION ---
-PARENT_FOLDER_ID = '1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019'
+# Page configuration
+st.set_page_config(
+    page_title="CompliancePro Dashboard",
+    page_icon="🚚",
+    layout="wide"
+)
 
-st.set_page_config(page_title="Austin Food Truck Compliance", layout="wide", page_icon="🚛")
-
-# --- THE DATA (RESTORED FROM GITHUB SNIPPET) ---
-permit_data = [
-    { 
-        "Category": "Health", 
-        "Requirement": "Mobile Food Vendor Permit", 
-        "Authority": "Austin Public Health", 
-        "Frequency": "Annual", 
-        "Est. Cost": 700,
-        "Details": "Primary permit required for all units."
-    },
-    { 
-        "Category": "Fire Safety", 
-        "Requirement": "Mobile Food Unit Fire Inspection", 
-        "Authority": "Austin Fire Dept (AFD)", 
-        "Frequency": "Annual", 
-        "Est. Cost": 225,
-        "Details": "Required for units using propane or electric heating."
-    },
-    { 
-        "Category": "Legal", 
-        "Requirement": "Texas Sales Tax Permit", 
-        "Authority": "TX Comptroller", 
-        "Frequency": "Once", 
-        "Est. Cost": 0,
-        "Details": "Required to collect sales tax on food items."
-    },
-    { 
-        "Category": "Health", 
-        "Requirement": "Food Manager Certificate", 
-        "Authority": "ANSI Accredited", 
-        "Frequency": "Every 5 Years", 
-        "Est. Cost": 50,
-        "Details": "One person on staff must have this certification."
-    },
-    { 
-        "Category": "Operations", 
-        "Requirement": "Central Preparation Facility (CPF) Contract", 
-        "Authority": "Licensed Commissary", 
-        "Frequency": "Monthly", 
-        "Est. Cost": 500,
-        "Details": "Agreement with a licensed kitchen for waste and prep."
-    },
-    { 
-        "Category": "Zoning", 
-        "Requirement": "Itinerant Vendor License", 
-        "Authority": "Austin Police Dept", 
-        "Frequency": "Annual", 
-        "Est. Cost": 50,
-        "Details": "Verification for operating in specific public right-of-ways."
-    },
-    { 
-        "Category": "Fire Safety", 
-        "Requirement": "Propane System Pressure Test", 
-        "Authority": "Licensed Plumber", 
-        "Frequency": "Annual", 
-        "Est. Cost": 150,
-        "Details": "Proof that your gas lines are leak-free."
-    },
-    { 
-        "Category": "Health", 
-        "Requirement": "Food Handler Certificate", 
-        "Authority": "State Approved", 
-        "Frequency": "Every 2 Years", 
-        "Est. Cost": 10,
-        "Details": "Required for all employees handling food."
-    }
-]
-
-# --- SESSION STATE & NAVIGATION ---
-if 'page' not in st.session_state:
-    st.session_state.page = 'Requirements'
-
-def set_page(page_name):
-    st.session_state.page = page_name
-
-with st.sidebar:
-    st.title("🚛 Food Truck Admin")
-    st.button("📋 Permit Requirements", on_click=set_page, args=('Requirements',), use_container_width=True)
-    st.button("📂 Digital Document Locker", on_click=set_page, args=('Locker',), use_container_width=True)
-    st.divider()
-    st.caption(f"Last Accessed: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    st.caption(f"Host: {socket.gethostname()}")
-
-# --- GOOGLE DRIVE HELPER FUNCTIONS ---
-def get_gdrive_service():
-    try:
-        # Assumes streamlit secrets are configured with service account info
-        info = st.secrets["gcp_service_account"]
-        credentials = service_account.Credentials.from_service_account_info(info)
-        return build('drive', 'v3', credentials=credentials)
-    except Exception as e:
-        st.error(f"❌ Google Drive Auth Error: {e}")
-        st.info("Please ensure 'gcp_service_account' is set in Streamlit Secrets.")
-        st.stop()
-
-def find_truck_folder(service, truck_name):
-    query = (f"name = '{truck_name}' and "
-             f"'{PARENT_FOLDER_ID}' in parents and "
-             f"mimeType = 'application/vnd.google-apps.folder' and "
-             f"trashed = false")
-    results = service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
-    files = results.get('files', [])
-    return files[0]['id'] if files else None
-
-def list_files_in_folder(service, folder_id):
-    query = f"'{folder_id}' in parents and trashed = false"
-    results = service.files().list(q=query, spaces='drive', fields='files(id, name, modifiedTime, webViewLink)').execute()
-    return results.get('files', [])
-
-# --- PAGE RENDERING ---
-
-if st.session_state.page == 'Requirements':
-    st.title("📋 Austin Permit Requirements")
-    st.info("Below is the regulatory roadmap for operating a mobile food unit in Austin, TX.")
-    
-    df = pd.DataFrame(permit_data)
-    
-    # Financial Overview Metrics
-    col1, col2, col3 = st.columns(3)
-    annual_fees = df[df['Frequency'].isin(['Annual', 'Every 2 Years', 'Every 5 Years'])]['Est. Cost'].sum()
-    monthly_fees = df[df['Frequency'] == 'Monthly']['Est. Cost'].sum()
-    
-    col1.metric("Annualized Regulatory Fees", f"${annual_fees:,.2f}")
-    col2.metric("Monthly Recurring (CPF)", f"${monthly_fees:,.2f}")
-    col3.metric("Permit Count", len(df))
-
-    st.divider()
-
-    # Data Table with Formatting
-    st.dataframe(
-        df,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Est. Cost": st.column_config.NumberColumn(format="$%d"),
-            "Requirement": st.column_config.TextColumn(help="Official name of the permit/certification"),
-            "Details": st.column_config.TextColumn(width="large")
+# Mock Data
+def load_data():
+    return [
+        {
+            "id": "1",
+            "name": "The Rolling Taco",
+            "owner": "Maria Garcia",
+            "status": "Incomplete",
+            "last_audit": "2024-05-10",
+            "score": 65,
+            "permits": [
+                {"document": "Business License", "status": "Approved", "expiry": "2025-01-15"},
+                {"document": "Health Dept Permit", "status": "Pending", "expiry": "2024-06-20"},
+                {"document": "Fire Safety Cert", "status": "Missing", "expiry": "N/A"},
+                {"document": "Food Handler Cards", "status": "Approved", "expiry": "2024-12-01"}
+            ]
+        },
+        {
+            "id": "2",
+            "name": "Burger Galaxy",
+            "owner": "John Smith",
+            "status": "Compliant",
+            "last_audit": "2024-05-15",
+            "score": 98,
+            "permits": [
+                {"document": "Business License", "status": "Approved", "expiry": "2025-03-22"},
+                {"document": "Health Dept Permit", "status": "Approved", "expiry": "2025-05-01"},
+                {"document": "Fire Safety Cert", "status": "Approved", "expiry": "2024-11-15"},
+                {"document": "Food Handler Cards", "status": "Approved", "expiry": "2025-01-10"}
+            ]
+        },
+        {
+            "id": "3",
+            "name": "Sushi Stop",
+            "owner": "Kenji Sato",
+            "status": "Expired",
+            "last_audit": "2024-04-20",
+            "score": 42,
+            "permits": [
+                {"document": "Business License", "status": "Expired", "expiry": "2024-04-01"},
+                {"document": "Health Dept Permit", "status": "Approved", "expiry": "2024-09-12"},
+                {"document": "Fire Safety Cert", "status": "Approved", "expiry": "2024-12-30"},
+                {"document": "Food Handler Cards", "status": "Approved", "expiry": "2024-10-15"}
+            ]
         }
-    )
+    ]
 
-elif st.session_state.page == 'Locker':
-    st.title("📂 Digital Document Locker")
-    st.write("Access your cloud-stored compliance documents directly from Google Drive.")
+# Custom CSS for status badges
+st.markdown("""
+<style>
+    .status-box {
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+    .metric-card {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 5px solid #3b82f6;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-    truck_name = st.text_input("Enter Truck Name (Folder Name):", placeholder="e.g. HILL COUNTRY CULINARY")
+# Application Logic
+def main():
+    vendors = load_data()
+    
+    # Sidebar Navigation
+    st.sidebar.title("🚚 CompliancePro")
+    st.sidebar.markdown("---")
+    
+    search_query = st.sidebar.text_input("Search Vendors", placeholder="Name or owner...")
+    
+    filtered_vendors = [
+        v for v in vendors 
+        if search_query.lower() in v['name'].lower() or search_query.lower() in v['owner'].lower()
+    ]
+    
+    vendor_names = [v['name'] for v in filtered_vendors]
+    selected_name = st.sidebar.radio("Select Vendor", vendor_names if vendor_names else ["No results found"])
 
-    if truck_name:
-        service = get_gdrive_service()
-        with st.spinner(f"Accessing folder: {truck_name}..."):
-            folder_id = find_truck_folder(service, truck_name)
-            
-            if folder_id:
-                files = list_files_in_folder(service, folder_id)
-                if files:
-                    st.success(f"Found {len(files)} documents.")
-                    
-                    # Transform for display
-                    file_list = []
-                    for f in files:
-                        file_list.append({
-                            "Document Name": f['name'],
-                            "Modified": f['modifiedTime'][:10],
-                            "View": f['webViewLink']
-                        })
-                    
-                    st.table(pd.DataFrame(file_list))
-                else:
-                    st.warning("Folder found, but it is currently empty.")
-            else:
-                st.error(f"No folder named '{truck_name}' found in the system root.")
+    if not filtered_vendors or selected_name == "No results found":
+        st.title("Vendor Compliance Management")
+        st.info("Please select a vendor from the sidebar to view detailed compliance records.")
+        
+        # Summary Overview for Dashboard Home
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Vendors", len(vendors))
+        col2.metric("Compliant", "33%", delta="5%")
+        col3.metric("Issues Flagged", "2", delta="-1", delta_color="inverse")
+        return
+
+    # Vendor Detail View
+    vendor = next(v for v in vendors if v['name'] == selected_name)
+    
+    # Header Section
+    col_title, col_status = st.columns([3, 1])
+    with col_title:
+        st.title(vendor['name'])
+        st.caption(f"Owner: {vendor['owner']} | Last Audit: {vendor['last_audit']}")
+    
+    with col_status:
+        if vendor['status'] == "Compliant":
+            st.success(f"Status: {vendor['status']}")
+        elif vendor['status'] == "Expired":
+            st.error(f"Status: {vendor['status']}")
+        else:
+            st.warning(f"Status: {vendor['status']}")
+
+    st.markdown("---")
+
+    # Metrics Row
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.metric("Compliance Score", f"{vendor['score']}%")
+        st.markdown('</div>', unsafe_allow_html=True)
+    with m2:
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.metric("Documents Tracked", len(vendor['permits']))
+        st.markdown('</div>', unsafe_allow_html=True)
+    with m3:
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        missing = len([p for p in vendor['permits'] if p['status'] in ["Missing", "Expired"]])
+        st.metric("Action Items", missing)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # Document Table
+    st.subheader("Document Repository")
+    df = pd.DataFrame(vendor['permits'])
+    
+    # Styled table display
+    def style_status(val):
+        color = '#d1fae5' if val == 'Approved' else '#fee2e2' if val in ['Expired', 'Missing'] else '#fef3c7'
+        text_color = '#065f46' if val == 'Approved' else '#991b1b' if val in ['Expired', 'Missing'] else '#92400e'
+        return f'background-color: {color}; color: {text_color}; font-weight: bold; border-radius: 5px'
+
+    st.table(df.style.applymap(style_status, subset=['status']))
+
+    # Management Actions
+    with st.expander("Update Records & Notes"):
+        note = st.text_area("Audit Notes", placeholder="Enter observations from the latest site visit...")
+        uploaded_file = st.file_uploader("Upload New Document", type=['pdf', 'jpg', 'png'])
+        if st.button("Submit Update"):
+            st.toast("Record updated successfully!", icon="✅")
+
+    # Critical Alerts
+    if vendor['status'] == "Expired":
+        st.error(f"⚠️ **IMMEDIATE ACTION REQUIRED**: {vendor['name']} has expired critical permits. A 'Stop Service' notice has been drafted.")
+        if st.button("Send Formal Notice"):
+            st.info("Notice sent to owner email.")
+
+if __name__ == "__main__":
+    main()
