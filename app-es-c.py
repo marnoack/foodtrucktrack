@@ -165,7 +165,7 @@ def main():
                     
                     try:
                         # Perform the cloud execution
-                        result = supabase.table("vendors").insert(new_client_payload).execute()
+                        result = supabase.table("vendors").insert(new_client).execute()
                         
                         # Verify Supabase actually returned data confirming the save
                         if result.data:
