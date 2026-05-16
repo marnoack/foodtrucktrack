@@ -11,7 +11,8 @@ import requests
 from PIL import Image
 
 # Pull your Apps Script URL from Streamlit Secrets
-SCRIPT_URL = st.secrets.get("gcp_service_account", {}).get("bucket_name")
+#SCRIPT_URL = st.secrets.get("gcp_service_account", {}).get("bucket_name")
+SCRIPT_URL = st.secrets.get("GSCRIPT_URL")
 
 def upload_to_drive(uploaded_file, original_filename):
     """Sends compressed image or raw PDF to Google Apps Script using its original filename"""
