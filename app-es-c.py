@@ -243,9 +243,22 @@ def main():
 
     # Metrics Row
     m1, m2, m3 = st.columns(3)
+    
+    # Calculate dynamic compliance score based on live permits
+    today_str = date.today().strftime('%Y-%m-%d')
+    total_permits = len(raw_permits)
+    
+    if total_permits > 0:
+        # Count how many permits are NOT expired
+        valid_permits = len([p for p in raw_permits if p['expiration_date'] >= today_str])
+        # Calculate percentage
+        dynamic_score = int((valid_permits / total_permits) * 100)
+    else:
+        dynamic_score = 0 # Default if they have no documents uploaded yet
+
     with m1:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.metric("Puntaje de Cumplimiento", f"{vendor['score']}%")
+        st.metric("Puntaje de Cumplimiento", f"{dynamic_score}%")
         st.markdown('</div>', unsafe_allow_html=True)
     with m2:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
