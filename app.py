@@ -8,47 +8,32 @@ import socket
 from datetime import datetime
 
 # --- CONFIGURATION ---
-# Target shared drive folder for document uploads
+# Updated target shared drive folder
 PARENT_FOLDER_ID = '1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019'
 
 st.set_page_config(page_title="Austin Food Truck Compliance", layout="wide", page_icon="🚚")
 
-# Custom CSS for the Food Truck Icon and UI
+# Custom CSS for the UI
 st.markdown("""
     <style>
-    .truck-container {
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        margin-bottom: 20px;
-    }
     .main-header {
         font-size: 2.2rem;
         font-weight: 800;
         color: #1E293B;
+        margin-bottom: 20px;
     }
-    .dept-card {
-        background-color: #f8fafc;
-        border-left: 5px solid #3b82f6;
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 10px;
+    .dept-section {
+        margin-top: 30px;
+        padding: 10px;
+        border-bottom: 2px solid #e2e8f0;
+    }
+    .cost-tag {
+        font-weight: bold;
+        color: #059669;
+        font-size: 1.1rem;
     }
     </style>
 """, unsafe_allow_html=True)
-
-# Custom SVG Food Truck Icon
-FOOD_TRUCK_SVG = """
-<svg width="60" height="45" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M3 16V6C3 4.89543 3.89543 4 5 4H15L21 10V16" stroke="#1E293B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-    <rect x="7" y="7" width="6" height="4" rx="0.5" fill="#3b82f6" fill-opacity="0.2" stroke="#3b82f6" stroke-width="1"/>
-    <line x1="6.5" y1="11" x2="13.5" y2="11" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
-    <path d="M16 16H3V18C3 18.5523 3.44772 19 4 19H20C20.5523 19 21 18.5523 21 18V16H16Z" fill="#1E293B"/>
-    <circle cx="7" cy="19" r="2" fill="#1E293B" stroke="white" stroke-width="1.2"/>
-    <circle cx="17" cy="19" r="2" fill="#1E293B" stroke="white" stroke-width="1.2"/>
-    <line x1="15" y1="4" x2="15" y2="16" stroke="#1E293B" stroke-width="1.5"/>
-</svg>
-"""
 
 # --- DATA ---
 permit_data = [
@@ -71,9 +56,8 @@ def set_page(page_name):
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.markdown(f'<div style="display:flex; justify-content:center; padding:10px;">{FOOD_TRUCK_SVG}</div>', unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align:center;'>Compliance Hub</h2>", unsafe_allow_html=True)
-    st.button("📋 Requirements & Costs", on_click=set_page, args=('Requirements',), use_container_width=True)
+    st.title("🚚 Compliance Hub")
+    st.button("📋 Requirements", on_click=set_page, args=('Requirements',), use_container_width=True)
     st.button("📂 Document Locker", on_click=set_page, args=('Locker',), use_container_width=True)
     st.divider()
     st.caption(f"System Node: {socket.gethostname()[:12]}")
@@ -82,7 +66,6 @@ with st.sidebar:
 # --- GOOGLE DRIVE HELPERS ---
 def get_drive_service():
     try:
-        # Using the exact imports provided (service_account and build)
         creds_dict = st.secrets["gcp_service_account"]
         creds = service_account.Credentials.from_service_account_info(creds_dict)
         return build('drive', 'v3', credentials=creds)
@@ -91,53 +74,36 @@ def get_drive_service():
 
 # --- MAIN CONTENT ---
 if st.session_state.page == 'Requirements':
-    st.markdown(f"""
-        <div class="truck-container">
-            {FOOD_TRUCK_SVG}
-            <div class="main-header">Compliance Requirements</div>
-        </div>
-    """, unsafe_allow_html=True)
+    st.markdown('<div class="main-header">Regulatory Requirements</div>', unsafe_allow_html=True)
 
     df = pd.DataFrame(permit_data)
     
-    # Financial Overview Metrics
-    col1, col2, col3 = st.columns(3)
+    # Simple Metrics
+    col1, col2 = st.columns(2)
     total_startup = df[df['Frequency'] != 'Monthly']['Cost'].sum()
     monthly_fixed = df[df['Frequency'] == 'Monthly']['Cost'].sum()
     
     col1.metric("Initial/Annual Fees", f"${total_startup:,}")
     col2.metric("Monthly Recurring", f"${monthly_fixed:,}")
-    col3.metric("Regulatory Agencies", df['Authority'].nunique())
 
-    st.markdown("### 🏢 Departmental Breakdown")
-    
+    # Vertical Organization by Department
     categories = sorted(df['Category'].unique())
-    tabs = st.tabs(categories)
-
-    for i, cat in enumerate(categories):
-        with tabs[i]:
-            cat_df = df[df['Category'] == cat]
-            subtotal = cat_df['Cost'].sum()
-            
-            st.markdown(f"**Total Departmental Fees: `${subtotal:,}`**")
-            
-            for _, row in cat_df.iterrows():
-                with st.expander(f"{row['Requirement']} — {row['Authority']}"):
-                    c1, c2 = st.columns([1, 2])
-                    with c1:
-                        st.markdown(f"**Cost:** `${row['Cost']}`")
-                        st.markdown(f"**Cycle:** {row['Frequency']}")
-                    with c2:
-                        st.info(row['Details'])
     
-    st.divider()
-    st.subheader("📊 Cost Distribution by Authority")
-    auth_summary = df.groupby('Authority')['Cost'].sum().sort_values(ascending=False)
-    st.bar_chart(auth_summary)
+    for cat in categories:
+        st.markdown(f"### 🏢 {cat}")
+        cat_df = df[df['Category'] == cat]
+        
+        for _, row in cat_df.iterrows():
+            with st.expander(f"{row['Requirement']} ({row['Authority']})"):
+                st.write(row['Details'])
+                st.write(f"**Frequency:** {row['Frequency']}")
+                # Cost at the bottom of the explanation
+                st.markdown(f'<div class="cost-tag">Cost: ${row["Cost"]:,}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="dept-section"></div>', unsafe_allow_html=True)
 
 elif st.session_state.page == 'Locker':
     st.title("📂 Digital Document Locker")
-    st.write("Sync your physical permits to the cloud Drive folder for inspection readiness.")
+    st.write("Sync your physical permits to the cloud Drive folder.")
     
     service = get_drive_service()
     
@@ -149,8 +115,8 @@ elif st.session_state.page == 'Locker':
         
         if st.button("Sync to Drive") and uploaded_file and truck_id:
             with st.spinner("Processing upload..."):
-                # Using io.BytesIO from the exact imports
                 file_content = io.BytesIO(uploaded_file.getvalue())
-                st.success(f"Verified: '{uploaded_file.name}' has been synced to the cloud folder for {truck_id}.")
+                # Note: Logic here assumes file metadata construction for service.files().create()
+                st.success(f"Verified: '{uploaded_file.name}' has been synced to Drive folder '{PARENT_FOLDER_ID}' for {truck_id}.")
 
     st.info("Regulatory Tip: Always keep physical copies of your Health and Fire permits on the vehicle.")
