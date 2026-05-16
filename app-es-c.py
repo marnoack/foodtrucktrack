@@ -391,9 +391,9 @@ def main():
     # Document Table
     st.subheader("Repositorio de Documentos")
     try:
-        # 1. Obtener de Supabase la lista oficial de los permisos obligatorios creados en la tabla permit_rules
-        rules_response = supabase.table("permit_rules").select("permit_name", "category").execute()
+        rules_response = supabase.table("permit_rules").select("id", "permit_name", "category", "is_required").execute()
         mandatory_permits = rules_response.data if rules_response.data else []
+        
     except Exception as e:
         st.error(f"Error cargando reglas de cumplimiento: {e}")
         mandatory_permits = []
@@ -403,33 +403,32 @@ def main():
     else:
         processed_permits = []
         today_str = date.today().strftime('%Y-%m-%d')
-        
-        # Crear un diccionario indexado de los permisos que el vendedor YA tiene cargados para búsqueda rápida
-        uploaded_dict = {p["issuing_entity"]: p for p in raw_permits}
+    
+        # Mapeamos los archivos cargados del vendedor usando su identificador 'permit_id'
+        uploaded_dict = {p["permit_id"]: p for p in raw_permits if p.get("permit_id") is not None}
         
         # 2. Iterar sobre la lista de lo que DEBERÍA tener cada Food Truck
         for rule in mandatory_permits:
+            rule_id = rule["id"]
             permit_name = rule["permit_name"]
             backend_key = rule["category"]
+            is_required = rule.get("is_required", True)
             
-            # Ignorar comodines genéricos de la tabla si existen
             if permit_name in ['Generic Tax Document', 'Other Document Type', 'other']:
                 continue
                 
             translated_category = CATEGORY_TRANSLATIONS[user_lang].get(backend_key, backend_key)
             
-            # Evaluar el estado real contrastando contra la base de datos
-            if permit_name in uploaded_dict:
-                # El documento existe, verificamos su fecha
-                vendedor_permit = uploaded_dict[permit_name]
+            # Buscamos primero por ID de regla; si no hay registro, cae en el string de compatibilidad anterior
+            vendedor_permit = uploaded_dict.get(rule_id) or uploaded_by_name.get(permit_name)
+            
+            if vendedor_permit:
                 expiration_date = vendedor_permit["expiration_date"]
-                
                 if expiration_date < today_str:
                     status_text = "Vencido" if user_lang == "es" else "Expired"
                 else:
                     status_text = "Aprobado" if user_lang == "es" else "Approved"
             else:
-                # El documento no existe en el expediente de este vendedor
                 status_text = "Faltante" if user_lang == "es" else "Missing"
                 expiration_date = "-----"
                 
