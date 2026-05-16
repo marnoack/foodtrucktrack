@@ -131,12 +131,8 @@ def show_license_directory():
 
 # Application Logic
 def main():
-    # Check if data is already in session memory; if not, load initial mock/database data
-    if 'vendors_list' not in st.session_state:
-        st.session_state.vendors_list = load_data()
-        
-    # Use the session data instead of a static variable
-    vendors = st.session_state.vendors_list
+    # Dynamically pull fresh state from your database client
+    vendors = load_data()
     
     # Sidebar Navigation
     st.sidebar.title("🚚 CompliancePro")
