@@ -7,35 +7,104 @@ import io
 import socket
 from datetime import datetime
 
-# --- CONFIGURATION (UNCHANGED) ---
-PARENT_FOLDER_ID = '1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019' 
+# --- CONFIGURATION ---
+PARENT_FOLDER_ID = '1Mk_xL9MwI036YOk9W1vAJ5K2RCNy1019'
 
-st.set_page_config(page_title="Austin Food Truck Compliance", layout="wide")
+st.set_page_config(page_title="Austin Food Truck Compliance", layout="wide", page_icon="🚛")
 
-# --- NAVIGATION LOGIC ---
+# --- THE DATA (RESTORED FROM GITHUB SNIPPET) ---
+permit_data = [
+    { 
+        "Category": "Health", 
+        "Requirement": "Mobile Food Vendor Permit", 
+        "Authority": "Austin Public Health", 
+        "Frequency": "Annual", 
+        "Est. Cost": 700,
+        "Details": "Primary permit required for all units."
+    },
+    { 
+        "Category": "Fire Safety", 
+        "Requirement": "Mobile Food Unit Fire Inspection", 
+        "Authority": "Austin Fire Dept (AFD)", 
+        "Frequency": "Annual", 
+        "Est. Cost": 225,
+        "Details": "Required for units using propane or electric heating."
+    },
+    { 
+        "Category": "Legal", 
+        "Requirement": "Texas Sales Tax Permit", 
+        "Authority": "TX Comptroller", 
+        "Frequency": "Once", 
+        "Est. Cost": 0,
+        "Details": "Required to collect sales tax on food items."
+    },
+    { 
+        "Category": "Health", 
+        "Requirement": "Food Manager Certificate", 
+        "Authority": "ANSI Accredited", 
+        "Frequency": "Every 5 Years", 
+        "Est. Cost": 50,
+        "Details": "One person on staff must have this certification."
+    },
+    { 
+        "Category": "Operations", 
+        "Requirement": "Central Preparation Facility (CPF) Contract", 
+        "Authority": "Licensed Commissary", 
+        "Frequency": "Monthly", 
+        "Est. Cost": 500,
+        "Details": "Agreement with a licensed kitchen for waste and prep."
+    },
+    { 
+        "Category": "Zoning", 
+        "Requirement": "Itinerant Vendor License", 
+        "Authority": "Austin Police Dept", 
+        "Frequency": "Annual", 
+        "Est. Cost": 50,
+        "Details": "Verification for operating in specific public right-of-ways."
+    },
+    { 
+        "Category": "Fire Safety", 
+        "Requirement": "Propane System Pressure Test", 
+        "Authority": "Licensed Plumber", 
+        "Frequency": "Annual", 
+        "Est. Cost": 150,
+        "Details": "Proof that your gas lines are leak-free."
+    },
+    { 
+        "Category": "Health", 
+        "Requirement": "Food Handler Certificate", 
+        "Authority": "State Approved", 
+        "Frequency": "Every 2 Years", 
+        "Est. Cost": 10,
+        "Details": "Required for all employees handling food."
+    }
+]
+
+# --- SESSION STATE & NAVIGATION ---
 if 'page' not in st.session_state:
     st.session_state.page = 'Requirements'
 
 def set_page(page_name):
     st.session_state.page = page_name
 
-# Sidebar for Navigation
 with st.sidebar:
-    st.title("🚛 Mobile Food Admin")
+    st.title("🚛 Food Truck Admin")
     st.button("📋 Permit Requirements", on_click=set_page, args=('Requirements',), use_container_width=True)
     st.button("📂 Digital Document Locker", on_click=set_page, args=('Locker',), use_container_width=True)
     st.divider()
-    st.caption(f"System Parent ID: `{PARENT_FOLDER_ID[:8]}...`")
+    st.caption(f"Last Accessed: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    st.caption(f"Host: {socket.gethostname()}")
 
-# --- GOOGLE DRIVE LOGIC (UNCHANGED) ---
-
+# --- GOOGLE DRIVE HELPER FUNCTIONS ---
 def get_gdrive_service():
     try:
+        # Assumes streamlit secrets are configured with service account info
         info = st.secrets["gcp_service_account"]
         credentials = service_account.Credentials.from_service_account_info(info)
         return build('drive', 'v3', credentials=credentials)
     except Exception as e:
-        st.error(f"❌ Connection Error: {e}. Check Streamlit Secrets.")
+        st.error(f"❌ Google Drive Auth Error: {e}")
+        st.info("Please ensure 'gcp_service_account' is set in Streamlit Secrets.")
         st.stop()
 
 def find_truck_folder(service, truck_name):
@@ -52,78 +121,64 @@ def list_files_in_folder(service, folder_id):
     results = service.files().list(q=query, spaces='drive', fields='files(id, name, modifiedTime, webViewLink)').execute()
     return results.get('files', [])
 
-# --- PAGE ROUTING ---
+# --- PAGE RENDERING ---
 
 if st.session_state.page == 'Requirements':
-    # NEW: Austin Texas Permit Guide
-    st.title("📋 Austin Food Truck Permit Requirements")
-    st.markdown("Below are the mandatory permits and licenses required to operate a food truck in Austin, Texas.")
+    st.title("📋 Austin Permit Requirements")
+    st.info("Below is the regulatory roadmap for operating a mobile food unit in Austin, TX.")
+    
+    df = pd.DataFrame(permit_data)
+    
+    # Financial Overview Metrics
+    col1, col2, col3 = st.columns(3)
+    annual_fees = df[df['Frequency'].isin(['Annual', 'Every 2 Years', 'Every 5 Years'])]['Est. Cost'].sum()
+    monthly_fees = df[df['Frequency'] == 'Monthly']['Est. Cost'].sum()
+    
+    col1.metric("Annualized Regulatory Fees", f"${annual_fees:,.2f}")
+    col2.metric("Monthly Recurring (CPF)", f"${monthly_fees:,.2f}")
+    col3.metric("Permit Count", len(df))
 
-    col1, col2 = st.columns([2, 1])
+    st.divider()
 
-    with col1:
-        with st.expander("1. Austin Public Health (APH) Permit", expanded=True):
-            st.markdown("""
-            **Permit Name:** Mobile Food Establishment (MFE) Permit.
-            - **Application:** Must submit a completed APH application and fee.
-            - **Inspection:** A physical inspection of the unit is required.
-            - **Central Preparation Facility (CPF):** You must provide a signed contract with a licensed commissary.
-            - [Official APH Website](https://www.austintexas.gov/department/mobile-food-establishments)
-            """)
-
-        with st.expander("2. Fire Marshal Inspection (AFD)"):
-            st.markdown("""
-            **Requirement:** Annual safety inspection by the Austin Fire Department.
-            - **Propane:** Requires a specific pressure test.
-            - **Fire Suppression:** Vent hoods must be inspected and tagged.
-            - **Extinguishers:** Must have 2A10BC and Class K (if using grease).
-            """)
-
-        with st.expander("3. State of Texas Sales Tax Permit"):
-            st.markdown("""
-            **Requirement:** Issued by the Texas Comptroller's Office.
-            - Necessary to collect and remit sales tax.
-            - Must be displayed prominently on the truck.
-            """)
-
-        with st.expander("4. Food Manager Certificate"):
-            st.markdown("""
-            **Requirement:** At least one person in charge must have a City of Austin Food Manager Certificate.
-            - All other employees must have a Basic Food Handler registration.
-            """)
-
-    with col2:
-        st.info("💡 **Compliance Tip**")
-        st.write("Ensure your CPF (Commissary) is in good standing before applying for your APH permit, as they will verify the facility license.")
-        st.image("https://www.austintexas.gov/sites/default/files/styles/standard_listing/public/images/Health_0.png?itok=Mh7rZ7iO", width=150)
+    # Data Table with Formatting
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Est. Cost": st.column_config.NumberColumn(format="$%d"),
+            "Requirement": st.column_config.TextColumn(help="Official name of the permit/certification"),
+            "Details": st.column_config.TextColumn(width="large")
+        }
+    )
 
 elif st.session_state.page == 'Locker':
-    # ORIGINAL: Document Locker logic
     st.title("📂 Digital Document Locker")
-    st.markdown("Search for your truck folder in Google Drive to verify uploaded compliance docs.")
+    st.write("Access your cloud-stored compliance documents directly from Google Drive.")
 
-    search_query = st.text_input("Truck Folder Name:", placeholder="e.g., HILL COUNTRY CULINARY")
+    truck_name = st.text_input("Enter Truck Name (Folder Name):", placeholder="e.g. HILL COUNTRY CULINARY")
 
-    if search_query:
+    if truck_name:
         service = get_gdrive_service()
-        with st.spinner("Searching Google Drive..."):
-            folder_id = find_truck_folder(service, search_query)
-        
-        if folder_id:
-            files = list_files_in_folder(service, folder_id)
-            if files:
-                data = [{
-                    "Document": f['name'],
-                    "Last Sync": f['modifiedTime'][:10],
-                    "Drive Link": f['webViewLink']
-                } for f in files]
-                
-                st.dataframe(
-                    pd.DataFrame(data),
-                    use_container_width=True,
-                    column_config={"Drive Link": st.column_config.LinkColumn()}
-                )
+        with st.spinner(f"Accessing folder: {truck_name}..."):
+            folder_id = find_truck_folder(service, truck_name)
+            
+            if folder_id:
+                files = list_files_in_folder(service, folder_id)
+                if files:
+                    st.success(f"Found {len(files)} documents.")
+                    
+                    # Transform for display
+                    file_list = []
+                    for f in files:
+                        file_list.append({
+                            "Document Name": f['name'],
+                            "Modified": f['modifiedTime'][:10],
+                            "View": f['webViewLink']
+                        })
+                    
+                    st.table(pd.DataFrame(file_list))
+                else:
+                    st.warning("Folder found, but it is currently empty.")
             else:
-                st.info("Folder found, but no files were detected inside.")
-        else:
-            st.error(f"Folder '{search_query}' not found in the parent directory.")
+                st.error(f"No folder named '{truck_name}' found in the system root.")
