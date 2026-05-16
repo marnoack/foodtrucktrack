@@ -55,10 +55,10 @@ def run_ocr_processor(file_bytes, category: str) -> dict:
         date_pattern = r'\b(\d{1,2}/\d{1,2}/\d{4}|\d{4}-\d{2}-\d{2})\b'
         
         # Look specifically for Issue Date prefixes (e.g., "date issue:", "issued:", "emisión:")
-        issue_match = re.search(r'(?:date issue|issued|emision|fecha de emision)\s*[:\-]?\s*' + date_pattern, combined_text_lower)
+        issue_match = re.search(r'(?:date issue|issued|emision|fecha de emision)\s*[:\-]?\s*' + date_pattern, combined_text)
 
         # Look specifically for Expiration Date prefixes (e.g., "expiration:", "expires:", "vencimiento:")
-        expiry_match = re.search(r'(?:expiration|expires|vence|vencimiento|valid thru)\s*[:\-]?\s*' + date_pattern, combined_text_lower)
+        expiry_match = re.search(r'(?:expiration|expires|vence|vencimiento|valid thru)\s*[:\-]?\s*' + date_pattern, combined_text)
         
 # Helper to clean and format whatever string format regex captures
         def normalize_date_string(date_str):
