@@ -21,7 +21,8 @@ def run_ocr_processor(file_bytes, category: str) -> dict:
     # Initialize baseline structure
     extracted_data = {
         "issuing_entity": "",
-        "expiration_date": ""
+        "expiration_date": "",
+        "issue_date": ""
     }
     
     try:
@@ -41,7 +42,7 @@ def run_ocr_processor(file_bytes, category: str) -> dict:
         
         # Basic context classification heuristics
         if "health" in combined_text or "sanitation" in combined_text:
-            extracted_data["issuing_entity"] = "Department of Health Services"
+            extracted_data["issuing_entity"] = "Department of State Health Services"
         elif "fire" in combined_text or "marshal" in combined_text:
             extracted_data["issuing_entity"] = "Fire Marshal Office"
         elif "comptroller" in combined_text or "tax" in combined_text:
@@ -49,14 +50,47 @@ def run_ocr_processor(file_bytes, category: str) -> dict:
         else:
             extracted_data["issuing_entity"] = "City Regulatory Authority"
             
-        # Regex search for an ISO date pattern (YYYY-MM-DD)
-        date_match = re.search(r'\b\d{4}-\d{2}-\d{2}\b', combined_text)
-        if date_match:
-            extracted_data["expiration_date"] = date_match.group(0)
-        else:
-            # Fallback default if Textract can't clearly parse a valid date format
-            extracted_data["expiration_date"] = date.today().strftime('%Y-%m-%d')
+        # REGEX DATE EXTRACTION ENGINE ---
+        # Matches both MM/DD/YYYY and YYYY-MM-DD formats
+        date_pattern = r'\b(\d{1,2}/\d{1,2}/\d{4}|\d{4}-\d{2}-\d{2})\b'
+        
+        # Look specifically for Issue Date prefixes (e.g., "date issue:", "issued:", "emisión:")
+        issue_match = re.search(r'(?:date issue|issued|emision|fecha de emision)\s*[:\-]?\s*' + date_pattern, combined_text_lower)
+
+        # Look specifically for Expiration Date prefixes (e.g., "expiration:", "expires:", "vencimiento:")
+        expiry_match = re.search(r'(?:expiration|expires|vence|vencimiento|valid thru)\s*[:\-]?\s*' + date_pattern, combined_text_lower)
+        
+# Helper to clean and format whatever string format regex captures
+        def normalize_date_string(date_str):
+            date_str = date_str.strip()
+            # If it's MM/DD/YYYY, convert it to standard database YYYY-MM-DD
+            if "/" in date_str:
+                try:
+                    return datetime.strptime(date_str, "%m/%d/%Y").strftime("%Y-%m-%d")
+                except ValueError:
+                    pass
+            return date_str # Return as-is if it's already YYYY-MM-DD
             
+        # Assign extracted Issue Date
+        if issue_match:
+            extracted_data["issue_date"] = normalize_date_string(issue_match.group(1))
+        else:
+            # Fallback to today's date if no clear issue header pattern is found
+            extracted_data["issue_date"] = date.today().strftime('%Y-%m-%d')
+            
+        # Assign extracted Expiration Date
+        if expiry_match:
+            extracted_data["expiration_date"] = normalize_date_string(expiry_match.group(1))
+        else:
+            # If no explicit expiration pattern is found, try picking the second standalone date found in the document
+            all_dates = re.findall(date_pattern, combined_text)
+            if len(all_dates) >= 2:
+                extracted_data["expiration_date"] = normalize_date_string(all_dates[1])
+            elif len(all_dates) == 1 and not issue_match:
+                extracted_data["expiration_date"] = normalize_date_string(all_dates[0])
+            else:
+                extracted_data["expiration_date"] = date.today().strftime('%Y-%m-%d')
+                
     except Exception as aws_error:
         st.error(f"Error de procesamiento en AWS Textract: {aws_error}")
         
@@ -425,13 +459,21 @@ def main():
                     value=scanned.get("issuing_entity", "")
                 )
                 
-                # Convert string date from OCR back to a Python datetime object for the UI picker
+                # --- NEW: Convert string ISSUE DATE back to date picker object ---
                 try:
-                    default_date = datetime.strptime(scanned.get("expiration_date", ""), "%Y-%m-%d").date()
-                except ValueError:
-                    default_date = None
+                    default_issue_date = datetime.strptime(scanned.get("issue_date", ""), "%Y-%m-%d").date()
+                except (ValueError, TypeError):
+                    default_issue_date = datetime.today().date()
                     
-                review_expiry = st.date_input("Fecha de Vencimiento Detectada *", value=default_date)
+                review_issue = st.date_input("Fecha de Emisión Detectada *", value=default_issue_date)
+                
+                # Convert string EXPIRATION DATE back to date picker object
+                try:
+                    default_expiry_date = datetime.strptime(scanned.get("expiration_date", ""), "%Y-%m-%d").date()
+                except (ValueError, TypeError):
+                    default_expiry_date = None
+                    
+                review_expiry = st.date_input("Fecha de Vencimiento Detectada *", value=default_expiry_date)
                 
                 # Step 4: Final Confirmation
                 if st.button("Confirmar y Guardar en Expediente", type="primary", use_container_width=True):
@@ -440,6 +482,7 @@ def main():
                             "vendor_id": vendor["id"],
                             "category": backend_category_key,
                             "issuing_entity": review_entity,
+                            "issue_date": review_issue.strftime('%Y-%m-%d'),
                             "expiration_date": review_expiry.strftime('%Y-%m-%d')
                         }
                         
