@@ -50,39 +50,58 @@ def run_ocr_processor(file_bytes, category: str) -> dict:
         else:
             extracted_data["issuing_entity"] = "City Regulatory Authority"
             
-        # REGEX DATE EXTRACTION ENGINE ---
-        # Matches both MM/DD/YYYY and YYYY-MM-DD formats
-        date_pattern = r'\b(\d{1,2}/\d{1,2}/\d{4}|\d{4}-\d{2}-\d{2})\b'
-        
-        # Look specifically for Issue Date prefixes (e.g., "date issue:", "issued:", "emisión:")
-        issue_match = re.search(r'(?:date issue|issued|emision|fecha de emision)\s*[:\-]?\s*' + date_pattern, combined_text)
 
-        # Look specifically for Expiration Date prefixes (e.g., "expiration:", "expires:", "vencimiento:")
-        expiry_match = re.search(r'(?:expiration|expires|vence|vencimiento|valid thru)\s*[:\-]?\s*' + date_pattern, combined_text)
+        # --- 2. REGEX DATE EXTRACTION ENGINE ---
+        # A more robust date pattern that captures MM/DD/YYYY, M/D/YYYY, or YYYY-MM-DD
+        date_pattern = r'(\b\d{1,2}[/\-]\d{1,2}[/\-]\d{4}\b|\b\d{4}-\d{2}-\d{2}\b)'
         
-# Helper to clean and format whatever string format regex captures
+        # Look for "date issue" or "issued" followed by optional spaces, optional colons, and the date
+        # re.IGNORECASE makes sure "Date Issue", "DATE ISSUE", and "date issue" all match perfectly
+        issue_match = re.search(
+            r'(?:date\s+issue|issued|emision|fecha\s+de\s+emision)\s*[:\-]?\s*' + date_pattern, 
+            combined_text, 
+            re.IGNORECASE
+        )
+        
+        # Look for expiration labels with the same high tolerance for spacing/case
+        expiry_match = re.search(
+            r'(?:expiration|expires|vence|vencimiento|valid\s+thru)\s*[:\-]?\s*' + date_pattern, 
+            combined_text, 
+            re.IGNORECASE
+        )
+        
+        # Helper to clean and format whatever string format regex captures
         def normalize_date_string(date_str):
+            if not date_str:
+                return ""
             date_str = date_str.strip()
-            # If it's MM/DD/YYYY, convert it to standard database YYYY-MM-DD
-            if "/" in date_str:
-                try:
-                    return datetime.strptime(date_str, "%m/%d/%Y").strftime("%Y-%m-%d")
-                except ValueError:
-                    pass
+            # If it's MM/DD/YYYY or M/D/YYYY, convert it to standard database YYYY-MM-DD
+            if "/" in date_str or "-" in date_str and len(date_str.split("-")[0]) != 4:
+                # Replace dashes with slashes temporarily if they used MM-DD-YYYY
+                normalized = date_str.replace("-", "/")
+                for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%m/%d/%y"):
+                    try:
+                        return datetime.strptime(normalized, fmt).strftime("%Y-%m-%d")
+                    except ValueError:
+                        continue
             return date_str # Return as-is if it's already YYYY-MM-DD
             
         # Assign extracted Issue Date
         if issue_match:
             extracted_data["issue_date"] = normalize_date_string(issue_match.group(1))
         else:
-            # Fallback to today's date if no clear issue header pattern is found
-            extracted_data["issue_date"] = date.today().strftime('%Y-%m-%d')
+            # Fallback: look for the very first standalone date in the document if the label match missed
+            all_dates = re.findall(date_pattern, combined_text)
+            if all_dates:
+                extracted_data["issue_date"] = normalize_date_string(all_dates[0])
+            else:
+                extracted_data["issue_date"] = date.today().strftime('%Y-%m-%d')
             
         # Assign extracted Expiration Date
         if expiry_match:
             extracted_data["expiration_date"] = normalize_date_string(expiry_match.group(1))
         else:
-            # If no explicit expiration pattern is found, try picking the second standalone date found in the document
+            # Fallback: pick the second standalone date found in the document
             all_dates = re.findall(date_pattern, combined_text)
             if len(all_dates) >= 2:
                 extracted_data["expiration_date"] = normalize_date_string(all_dates[1])
