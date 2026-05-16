@@ -130,7 +130,11 @@ CATEGORY_TRANSLATIONS = {
             "status": "Status",
             "aprobado": "Approved",
             "vencido": "Expired",
-            "faltante": "Missing"
+            "faltante": "Missing",
+            "repo_title": "Document Repository",
+            "score": "Compliance Score",
+            "registered": "Registered Documents",
+            "tasks": "Pending Tasks"
         }
     },
     "es": {
@@ -146,7 +150,11 @@ CATEGORY_TRANSLATIONS = {
             "status": "Estado",
             "aprobado": "Aprobado",
             "vencido": "Vencido",
-            "faltante": "Faltante"
+            "faltante": "Faltante",
+            "repo_title": "Repositorio de Documentos",
+            "score": "Puntaje de Cumplimiento",
+            "registered": "Documentos Registrados",
+            "tasks": "Tareas Pendientes"
         }
     }
 }
@@ -377,21 +385,21 @@ def main():
 
     with m1:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.metric("Puntaje de Cumplimiento", f"{dynamic_score}%")
+        st.metric(ui_labels["score"], f"{dynamic_score}%")
         st.markdown('</div>', unsafe_allow_html=True)
     with m2:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.metric("Documentos Registrados", len(raw_permits))
+        st.metric(ui_labels["registered"], len(raw_permits))
         st.markdown('</div>', unsafe_allow_html=True)
     with m3:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         today_str = date.today().strftime('%Y-%m-%d')
         missing = len([p for p in raw_permits if p['expiration_date'] < today_str])
-        st.metric("Tareas Pendientes", missing)
+        st.metric(ui_labels["tasks"], missing)
         st.markdown('</div>', unsafe_allow_html=True)
 
     # Document Table
-    st.subheader("Repositorio de Documentos")
+    st.subheader(ui_labels["repo_title"])
     try:
         rules_response = supabase.table("permit_rules").select("id", "permit_name", "category", "is_required").execute()
         mandatory_permits = rules_response.data if rules_response.data else []
