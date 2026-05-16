@@ -440,8 +440,7 @@ def main():
                             "vendor_id": vendor["id"],
                             "category": backend_category_key,
                             "issuing_entity": review_entity,
-                            "expiration_date": review_expiry.strftime('%Y-%m-%d'),
-                            "status": "Approved" 
+                            "expiration_date": review_expiry.strftime('%Y-%m-%d')
                         }
                         
                         try:
