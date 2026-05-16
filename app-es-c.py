@@ -275,6 +275,9 @@ def main():
     # Simple Language Toggle in Sidebar UI
     lang_choice = st.sidebar.selectbox("🌐 Idioma / Language", ["Español", "English"])
     st.session_state.lang = "es" if lang_choice == "Español" else "en"
+
+    # 2. Forzar a user_lang a leer estrictamente del session_state
+    user_lang = st.session_state.lang
     
     st.sidebar.markdown("---")
     search_query = st.sidebar.text_input("Buscar Vendedor", placeholder="Nombre o propietario...")
