@@ -9,8 +9,8 @@ from datetime import datetime
 
 # --- CONFIGURATION ---
 # The ID of the parent folder containing all food truck folders
-#PARENT_FOLDER_ID = '1bCy76WtDQPPxF-RROo0whaA1xBrFoA0l'
-PARENT_FOLDER_ID = '1tFAdApE1DwQpgvxh0CKU_3j5UfHhh5PH'
+PARENT_FOLDER_ID = '1bCy76WtDQPPxF-RROo0whaA1xBrFoA0l'
+#PARENT_FOLDER_ID = '1tFAdApE1DwQpgvxh0CKU_3j5UfHhh5PH'
 
 st.set_page_config(page_title="Gestión de Cumplimiento", layout="wide")
 
