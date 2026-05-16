@@ -37,7 +37,7 @@ CATEGORY_TRANSLATIONS = {
     }
 }
 
-//*****************************************************************
+#*****************************************************************
 # Setup language state (from user toggle or default)
 if "lang" not in st.session_state:
     st.session_state.lang = "es"  # Defaulting to Spanish based on dashboard style
@@ -45,7 +45,7 @@ if "lang" not in st.session_state:
 user_lang = st.session_state.lang
 ui_labels = CATEGORY_TRANSLATIONS[user_lang]["ui"]
 
-//*****************************************************************
+#*****************************************************************
 
 # Page configuration
 st.set_page_config(
