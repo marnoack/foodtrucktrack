@@ -236,7 +236,20 @@ def main():
 
     # Vendor Detail View
     vendor = next(v for v in vendors if v['name'] == selected_name)
+
+    # -----------------------------------------------------------------
+    # DATABASE QUERY: Fetch Permits for current vendor from new table
+    # -----------------------------------------------------------------
+    raw_permits = []  # <--- CRITICAL: Initialize safely outside the block first!
     
+    try:
+        permits_response = supabase.table("vendor_permits").select("*").eq("vendor_id", vendor["id"]).execute()
+        if permits_response and hasattr(permits_response, 'data'):
+            raw_permits = permits_response.data
+    except Exception as e:
+        st.error(f"Error loading permits from Supabase: {e}")
+        raw_permits = [] # Fallback safeguard
+        
     # Header Section
     col_title, col_status = st.columns([3, 1])
     with col_title:
