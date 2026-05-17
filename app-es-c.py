@@ -216,6 +216,9 @@ CATEGORY_TRANSLATIONS = {
             "aprobado": "Approved",
             "vencido": "Expired",
             "faltante": "Missing",
+            "cumple": "Compliant",
+            "incompleto": "Incomplete",
+            "vencido_label": "Expired Status",
             "repo_title": "Document Repository",
             "score": "Compliance Score",
             "registered": "Registered Documents",
@@ -274,6 +277,9 @@ CATEGORY_TRANSLATIONS = {
             "aprobado": "Aprobado",
             "vencido": "Vencido",
             "faltante": "Faltante",
+            "cumple": "Cumple",
+            "incompleto": "Incompleto",
+            "vencido_label": "Estado Vencido",
             "repo_title": "Repositorio de Documentos",
             "score": "Puntaje de Cumplimiento",
             "registered": "Documentos Registrados",
@@ -845,7 +851,7 @@ def main():
                             st.error("Los campos requeridos no pueden estar vacíos.")
 
     # Critical Alerts
-    if vendor['status'] == "Vencido":
+    if vendor['status'] == ui_labels["vencido"]:
         st.error(f"⚠️ **ACCION INMEDIATA REQUERIDA**: {vendor['name']} tiene permisos críticos vencidos. Se ha redactado un aviso de 'Suspensión de Servicio'.")
         if st.button("Enviar Notificación Formal"):
             st.info("Notificación enviada al correo electrónico del propietario.")
