@@ -638,8 +638,6 @@ def main():
             backend_key = rule["category"]
             is_required = rule.get("is_required", True)
             
-            st.caption(f"Categoría interna BD: `{backend_key}`")
-            
             if permit_name in ['Generic Tax Document', 'Other Document Type', 'other']:
                 continue
                 
@@ -717,7 +715,9 @@ def main():
 
         if selected_permit != ui_labels["select_permit_placeholder"]:
             matching_rule = next((row for row in db_rules if row["permit_name"] == selected_permit), None)
+            st.caption(f"Categoría interna1: `{matching_rule["category"]}`")
             backend_category_key = matching_rule["category"] if matching_rule else "other"
+            st.caption(f"Categoría interna2: `{backend_category_key}`")
             
             # Step 2: Upload file
             uploaded_file = st.file_uploader(
