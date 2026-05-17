@@ -614,7 +614,7 @@ def main():
     # Document Table
     st.subheader(ui_labels["repo_title"])
     try:
-        rules_response = supabase.table("permit_rules").select("id", "permit_name", "category", "is_required").execute()
+        rules_response = supabase.table("permit_rules").select("id", "permit_name", "", "is_required").execute()
         mandatory_permits = rules_response.data if rules_response.data else []
         
     except Exception as e:
@@ -640,7 +640,7 @@ def main():
             if permit_name in ['Generic Tax Document', 'Other Document Type', 'other']:
                 continue
                 
-            translated_category = CATEGORY_TRANSLATIONS[user_lang].get(backend_key, backend_key)
+            #translated_category = CATEGORY_TRANSLATIONS[user_lang].get(backend_key, backend_key)
             
             # Buscamos primero por ID de regla; si no hay registro, cae en el string de compatibilidad anterior
             #vendedor_permit = uploaded_dict.get(rule_id) or uploaded_by_name.get(permit_name)
@@ -658,7 +658,8 @@ def main():
                 
             processed_permits.append({
                 ui_labels["document"]: permit_name,
-                ui_labels["category"]: translated_category,
+                ui_labels["category"]: backend_key,
+                #ui_labels["category"]: translated_category,
                 ui_labels["expiry"]: expiration_date,
                 ui_labels["status"]: status_text
             })
