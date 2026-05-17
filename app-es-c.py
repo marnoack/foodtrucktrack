@@ -205,7 +205,7 @@ CATEGORY_TRANSLATIONS = {
     "en": {
         "tax": "Tax",
         "health": "Health",
-        "fire_safety": "Safety",
+        "safety": "Safety",
         "business_license": "Business License",
         "other": "Other",
         "ui": {
@@ -268,7 +268,7 @@ CATEGORY_TRANSLATIONS = {
     "es": {
         "tax": "Impuestos",
         "health": "Salud e Higiene",
-        "fire_safety": "Seguridad",
+        "safety": "Seguridad",
         "business_license": "Licencia de Negocio",
         "other": "Otro",
         "ui": {
