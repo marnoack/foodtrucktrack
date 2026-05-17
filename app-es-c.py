@@ -642,11 +642,8 @@ def main():
             
             if permit_name in ['Generic Tax Document', 'Other Document Type', 'other']:
                 continue
-                
-            #translated_category = CATEGORY_TRANSLATIONS[user_lang].get(backend_key, backend_key)
-            
+            url_archivo = None            
             # Buscamos primero por ID de regla; si no hay registro, cae en el string de compatibilidad anterior
-            #vendedor_permit = uploaded_dict.get(rule_id) or uploaded_by_name.get(permit_name)
             vendedor_permit = uploaded_dict.get(rule_id)
             
             if vendedor_permit:
