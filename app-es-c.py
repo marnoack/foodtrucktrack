@@ -567,32 +567,26 @@ def main():
 
     # Calculate dynamic compliance score based on live permits
     today_str = date.today().strftime('%Y-%m-%d')
-
-# --- ALIGNED STRUCTURE CALCULATION ENGINE ---
+# --- TRUE ALIGNED CALCULATION ENGINE ---
     try:
-        rules_response = supabase.table("permit_rules").select("id", "permit_name").execute()
+        rules_response = supabase.table("permit_rules").select("id", "permit_name", "category", "is_required").execute()
         mandatory_permits = rules_response.data if rules_response.data else []
-    except Exception:
+    except Exception as e:
         mandatory_permits = []
 
-    # Filter out generic placeholder categories just like your layout loop does
+    # This is the exact filter your table uses down below
     clean_rules = [r for r in mandatory_permits if r.get("permit_name") not in ['Generic Tax Document', 'Other Document Type', 'other']]
     total_permits = len(clean_rules)
-
+    
     if total_permits > 0:
-        # Create a dictionary matching the newest upload to each permit_id
-        uploaded_dict = {}
-        if raw_permits:
-            sorted_permits = sorted(raw_permits, key=lambda x: x.get('issue_date', ''))
-            for p in sorted_permits:
-                if p.get("permit_id") is not None:
-                    uploaded_dict[p["permit_id"]] = p
-
+        # Create the exact same uploaded dictionary mapping your table uses
+        uploaded_dict = {p["permit_id"]: p for p in raw_permits if p.get("permit_id") is not None}
+        
         valid_permits = 0
         expired_permits = 0
-        missing_permits_count = 0
-
-        # Loop exactly like your dashboard table does
+        missing_permits = 0
+        
+        # Run the identical loop logic to count status states
         for rule in clean_rules:
             rule_id = rule["id"]
             vendedor_permit = uploaded_dict.get(rule_id)
@@ -603,21 +597,17 @@ def main():
                 else:
                     valid_permits += 1
             else:
-                missing_permits_count += 1
-
-        # Calculate metrics using identical rule-loop results
+                missing_permits += 1
+                
+        # Calculate scores and tasks using your exact variable targets
         dynamic_score = int((valid_permits / total_permits) * 100)
-        missing = expired_permits + missing_permits_count
+        missing = expired_permits + missing_permits
     else:
-        # Fallback tracking if rules cannot be reached
-        if len(raw_permits) > 0:
-            valid_permits = len([p for p in raw_permits if p['expiration_date'] >= today_str])
-            dynamic_score = int((valid_permits / len(raw_permits)) * 100)
-            missing = len([p for p in raw_permits if p['expiration_date'] < today_str])
-        else:
-            dynamic_score = 0
-            missing = 0
-    # --- END ALIGNED STRUCTURE CALCULATION ENGINE ---
+        dynamic_score = 0
+        missing = 0
+    # --- END TRUE ALIGNED CALCULATION ENGINE ---
+
+    
     
    # total_permits = len(raw_permits)
    # if total_permits > 0:
