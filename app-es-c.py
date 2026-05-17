@@ -562,7 +562,19 @@ def main():
     except Exception as e:
         st.error(f"Error loading permits from Supabase: {e}")
         raw_permits = []
-        
+
+    # Calculate dynamic compliance score based on live permits
+    today_str = date.today().strftime('%Y-%m-%d')
+    total_permits = len(raw_permits)
+    
+    if total_permits > 0:
+        valid_permits = len([p for p in raw_permits if p['expiration_date'] >= today_str])
+        dynamic_score = int((valid_permits / total_permits) * 100)
+        missing = len([p for p in raw_permits if p['expiration_date'] < today_str])
+    else:
+        dynamic_score = 0
+        missing = 0
+   
     # Header Section
     col_title, col_status = st.columns([3, 1])
     with col_title:
@@ -570,14 +582,14 @@ def main():
         st.caption(f"{ui_labels['owner_label']}: {vendor['owner']} | {ui_labels['last_audit_label']}: {vendor['last_audit']}")
     
     with col_status:
-        display_status = ui_labels["incompleto"]
-        if vendor['status'] == "Compliant":
+        if dynamic_score == 100:
             display_status = ui_labels["cumple"]
             st.success(f"{ui_labels['status']}: {display_status}")
-        elif vendor['status'] == "Expired":
+        elif missing > 0:
              display_status = ui_labels["vencido"]
              st.error(f"{ui_labels['status']}: {display_status}")
         else:
+            display_status = ui_labels["incompleto"]
             st.warning(f"{ui_labels['status']}: {display_status}")
 
     st.markdown("---")
@@ -585,18 +597,6 @@ def main():
     # Metrics Row
     m1, m2, m3 = st.columns(3)
     
-    # Calculate dynamic compliance score based on live permits
-    today_str = date.today().strftime('%Y-%m-%d')
-    total_permits = len(raw_permits)
-    
-    if total_permits > 0:
-        # Count how many permits are NOT expired
-        valid_permits = len([p for p in raw_permits if p['expiration_date'] >= today_str])
-        # Calculate percentage
-        dynamic_score = int((valid_permits / total_permits) * 100)
-    else:
-        dynamic_score = 0 # Default if they have no documents uploaded yet
-
     with m1:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
         st.metric(ui_labels["score"], f"{dynamic_score}%")
