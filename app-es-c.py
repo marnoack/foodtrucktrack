@@ -20,6 +20,8 @@ def upload_to_drive(uploaded_file, original_filename):
         st.error("Configura el URL del script en los Secrets para guardar documentos.")
         return None 
     try:
+        uploaded_file.seek(0)
+        
         # Determine file type by checking the extension
         is_pdf = original_filename.lower().endswith('.pdf')
         
@@ -56,6 +58,7 @@ def upload_to_drive(uploaded_file, original_filename):
             try:
                 response = requests.post(SCRIPT_URL, json=payload, timeout=30)
                 if response.status_code == 200:
+                    res_json = response.json()
                     if "error" in res_json:
                         st.error(f"Error interno de Google Apps Script: {res_json['error']}")
                         return None
@@ -685,14 +688,23 @@ def main():
                             # A. Los datos ya están verificados, AHORA subimos a Drive
                             with st.spinner("📤 Datos verificados. Subiendo archivo a Google Drive..."):
                                 drive_url = upload_to_drive(uploaded_file, uploaded_file.name)
+                            if not drive_url:
+                                st.error("❌ El archivo no pudo ser subido a Google Drive. Revisa los permisos o el tamaño del archivo. Operación cancelada.")
+                                st.stop() # Detiene la ejecución aquí para que el error no desaparezca
                                 
                             # Buscamos el ID correspondiente de la regla para inyectarlo en la llave foránea
                             matched_rule_id = None
                             if mandatory_permits:
+                                clean_review_entity = review_entity.strip().lower()
                                 matched_rule = next((r for r in mandatory_permits if r["permit_name"] == review_entity), None)
                                 if matched_rule:
                                     matched_rule_id = matched_rule["id"]
-                                
+                                else:
+                                    # Fallback opcional por si el nombre cambió un poco pero la categoría coincide
+                                    fallback_rule = next((r for r in mandatory_permits if r["category"] == backend_category_key), None)
+                                    if fallback_rule:
+                                        matched_rule_id = fallback_rule["id"]
+                                        
                             new_permit_row = {
                                  "vendor_id": vendor["id"],
                                  "permit_id": matched_rule_id,
