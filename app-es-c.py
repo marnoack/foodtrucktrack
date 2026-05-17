@@ -690,7 +690,7 @@ def main():
                             vendor_name_clean = vendor["name"].strip().lower().replace(" ", "-")
                             
                             # 2. CREATE THE NEW FILENAME (e.g., thai-spice-Galaxy-SERVICES.pdf)
-                            new_filename = f"{vendor_name_clean}-{uploaded_file.name}
+                            new_filename = f"{vendor_name_clean}-{uploaded_file.name}"
                             
                             # A. Los datos ya están verificados, AHORA subimos a Drive
                             with st.spinner("📤 Datos verificados. Subiendo archivo a Google Drive..."):
