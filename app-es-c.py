@@ -848,11 +848,12 @@ def main():
                                     if fallback_rule:
                                         matched_rule_id = fallback_rule["id"]
                                         
-                            st.caption(f"Categoría interna 3: `{backend_category_key}`")            
+                            st.caption(f"Categoría interna 3: `{backend_category_key}`")
+                            st.code(f"Enviando a BD -> Campo category: '{backend_category_key}' (Largo: {len(backend_category_key)})")
                             new_permit_row = {
                                  "vendor_id": vendor["id"],
                                  "permit_id": matched_rule_id,
-                                 "category": backend_category_key,
+                                 "category": backend_category_key.strip(),
                                  "issuing_entity": review_entity,
                                  "issue_date": review_issue.strftime('%Y-%m-%d'), 
                                  "expiration_date": review_expiry.strftime('%Y-%m-%d')
