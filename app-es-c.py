@@ -666,7 +666,7 @@ def main():
                 #ui_labels["category"]: translated_category,
                 ui_labels["expiry"]: expiration_date,
                 ui_labels["status"]: status_text,
-                ui_labels["link"]: link_display
+                ui_labels["link"]: url_archivo
             })
 
         # 3. Generar el DataFrame y renderizar la tabla con estilos dinámicos
@@ -689,7 +689,8 @@ def main():
             column_config={
                 # Le indicamos a Streamlit que renderice esta columna como enlaces reales de internet
                 ui_labels["link"]: st.column_config.LinkColumn(
-                    display_text=f"📄 {ui_labels['link']}"
+                    display_text=f"📄 {ui_labels['link']}",
+                    placeholder="⚠️ N/A"
                 )
             }
         )
