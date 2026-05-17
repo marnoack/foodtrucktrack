@@ -568,7 +568,19 @@ def main():
     # Calculate dynamic compliance score based on live permits
     today_str = date.today().strftime('%Y-%m-%d')
 
-# --- FIXED CALCULATIONS BLOCK ---
+# --- FILTER TO LATEST PERMIT PER TYPE & CALCULATE ---
+    if raw_permits:
+        # Sort by issue_date ascending so that later duplicates overwrite older ones
+        raw_permits = sorted(raw_permits, key=lambda x: x.get('issue_date', ''))
+        
+        # Keep only the latest permit configuration per unique permit_id/category
+        latest_permits_dict = {}
+        for p in raw_permits:
+            permit_key = p.get('permit_id') or p.get('category') or p.get('id')
+            latest_permits_dict[permit_key] = p
+            
+        raw_permits = list(latest_permits_dict.values())
+
     try:
         rules_response = supabase.table("permit_rules").select("id").execute()
         total_permits = len(rules_response.data) if rules_response.data else len(raw_permits)
@@ -577,6 +589,10 @@ def main():
     
     if total_permits > 0:
         valid_permits = len([p for p in raw_permits if p['expiration_date'] >= today_str])
+        
+        if valid_permits > total_permits:
+            total_permits = valid_permits
+            
         dynamic_score = int((valid_permits / total_permits) * 100)
         missing = max(0, total_permits - valid_permits)
     else:
