@@ -868,7 +868,7 @@ def main():
                                     if "current_file" in st.session_state:
                                         del st.session_state.current_file
                                     
-                                    st.toast("ui_labels["ocr_save_success"]", icon="✅")
+                                    st.toast(ui_labels["ocr_save_success"], icon="✅")
                                     st.rerun()
                             except Exception as e:
                                 st.error(f"{ui_labels['ocr_save_error']} {e}")
