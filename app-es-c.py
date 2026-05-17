@@ -848,6 +848,7 @@ def main():
                                     if fallback_rule:
                                         matched_rule_id = fallback_rule["id"]
                                         
+                            st.caption(f"Categoría interna 3: `{backend_category}`")            
                             new_permit_row = {
                                  "vendor_id": vendor["id"],
                                  "permit_id": matched_rule_id,
