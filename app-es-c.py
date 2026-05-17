@@ -715,9 +715,7 @@ def main():
 
         if selected_permit != ui_labels["select_permit_placeholder"]:
             matching_rule = next((row for row in db_rules if row["permit_name"] == selected_permit), None)
-            st.caption(f"Categoría interna1: `{matching_rule["category"]}`")
             backend_category_key = matching_rule["category"] if matching_rule else "other"
-            st.caption(f"Categoría interna2: `{backend_category_key}`")
             
             # Step 2: Upload file
             uploaded_file = st.file_uploader(
@@ -848,7 +846,6 @@ def main():
                                     if fallback_rule:
                                         matched_rule_id = fallback_rule["id"]
                                         
-                            st.caption(f"Categoría interna 3: `{backend_category_key}`")
                             st.code(f"Enviando a BD -> Campo category: '{backend_category_key}' (Largo: {len(backend_category_key)})")
                             new_permit_row = {
                                  "vendor_id": vendor["id"],
