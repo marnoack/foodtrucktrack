@@ -548,6 +548,13 @@ def main():
     # Management Actions
     with st.expander("📤 Cargar y Escanear Nuevo Documento"):
         st.markdown("### 🤖 Sistema de Escaneo Automático (OCR)")
+
+        # === CHANGE: Initialize Master Visibility Switch and Uploader ID ===
+        if "show_verification_form" not in st.session_state:
+            st.session_state.show_verification_form = True
+        
+        if "uploader_id" not in st.session_state:
+            st.session_state.uploader_id = 1
         
         # Step 1: Force category selection first
         available_categories = {
@@ -563,11 +570,15 @@ def main():
         if selected_ui_category != "-- Seleccione una categoría --":
             backend_category_key = available_categories[selected_ui_category]
             
-            # Step 2: File upload acts as the trigger for OCR processing
+            # === CHANGE: File upload with dynamic ID controlled by session state ===
             uploaded_file = st.file_uploader(
                 f"2. Suba el documento de {selected_ui_category} para escaneo automático", 
-                type=['pdf', 'jpg', 'png']
+                type=['pdf', 'jpg', 'png'],
+                key=f"file_uploader_key_{st.session_state.uploader_id}"
             )
+
+            if uploaded_file is not None and st.session_state.get("current_file") != uploaded_file.name:
+            st.session_state.show_verification_form = True
             
             if uploaded_file is not None:
                 # Use session state to cache OCR results so they don't re-run on every click
@@ -590,15 +601,10 @@ def main():
 
                 # Retrieve scanned data from state cache
                 scanned = st.session_state.ocr_data
-                
-                # =====================================================================
-                # Si acabamos de borrar ocr_data tras un guardado exitoso, 
-                # imprimimos un mensaje de éxito y detenemos la ejecución de este bloque.
-                if "ocr_data" not in st.session_state:
-                    st.success("¡Proceso finalizado con éxito!")
-                    # Usamos un return si esto está dentro de una función def, 
-                    # o simplemente dejamos que pase si la lógica terminó.
-                    # Para asegurar el flujo de Streamlit, usamos st.stop()
+
+                # === CHANGE: INTERNAL SAFETY SWITCH (Halts rendering after saving) ===
+                if not st.session_state.get("show_verification_form", True):
+                    st.info("🔄 Proceso finalizado. El expediente del cliente ha sido actualizado.")
                     st.stop()
                 # =====================================================================
                     
@@ -668,8 +674,8 @@ def main():
                     
                     if submitted:
 
-               # # 2. El botón de confirmación que modificamos en el primer paso va inmediatamente después
-              #  if st.button("Confirmar y Guardar en Expediente", type="primary", use_container_width=True):
+                  # # 2. El botón de confirmación que modificamos en el primer paso va inmediatamente después
+                 #  if st.button("Confirmar y Guardar en Expediente", type="primary", use_container_width=True):
                         if review_entity and review_expiry and review_issue:
                             # A. Los datos ya están verificados, AHORA subimos a Drive
                             with st.spinner("📤 Datos verificados. Subiendo archivo a Google Drive..."):
@@ -693,11 +699,20 @@ def main():
                             try:
                                 result = supabase.table("vendor_permits").insert(new_permit_row).execute()
                                 if result.data:
+                                    # === CHANGES FOR ABSOLUTE FILE CLEARANCE ===
+                                    # 1. Hide the form from the UI immediately
+                                    st.session_state.show_verification_form = False
+                                
+                                    # 2. Increment ID to destroy and re-create the file uploader component empty
+                                    st.session_state.uploader_id += 1
+                                
+                                    # 3. Delete old cached file metadata
+                                    if "ocr_data" in st.session_state:
+                                        del st.session_state.ocr_data
+                                    if "current_file" in st.session_state:
+                                        del st.session_state.current_file
                                     
-                                    # Clear OCR cache on successful upload to reset state completely
-                                    del st.session_state.ocr_data
-                                    del st.session_state.current_file
-                                    st.toast("¡Documento guardado y verificado en la base de datos!", icon="✅")
+                                    st.toast("¡Documento guardado y verificado con éxito!", icon="✅")
                                     st.rerun()
                             except Exception as e:
                                 st.error(f"Error al guardar registros: {e}")
