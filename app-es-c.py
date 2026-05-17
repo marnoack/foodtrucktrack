@@ -567,15 +567,31 @@ def main():
 
     # Calculate dynamic compliance score based on live permits
     today_str = date.today().strftime('%Y-%m-%d')
-    total_permits = len(raw_permits)
+
+# --- FIXED CALCULATIONS BLOCK ---
+    try:
+        rules_response = supabase.table("permit_rules").select("id").execute()
+        total_permits = len(rules_response.data) if rules_response.data else len(raw_permits)
+    except Exception:
+        total_permits = len(raw_permits)
     
     if total_permits > 0:
         valid_permits = len([p for p in raw_permits if p['expiration_date'] >= today_str])
         dynamic_score = int((valid_permits / total_permits) * 100)
-        missing = len([p for p in raw_permits if p['expiration_date'] < today_str])
+        missing = max(0, total_permits - valid_permits)
     else:
         dynamic_score = 0
         missing = 0
+    # --- END FIXED CALCULATIONS BLOCK ---
+    
+   # total_permits = len(raw_permits)
+   # if total_permits > 0:
+   #     valid_permits = len([p for p in raw_permits if p['expiration_date'] >= today_str])
+   #     dynamic_score = int((valid_permits / total_permits) * 100)
+   #     missing = len([p for p in raw_permits if p['expiration_date'] < today_str])
+   # else:
+   #     dynamic_score = 0
+   #     missing = 0
    
     # Header Section
     col_title, col_status = st.columns([3, 1])
