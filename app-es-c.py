@@ -64,7 +64,7 @@ def upload_to_drive(uploaded_file, original_filename, ui_labels: dict):
                         return None
                     return res_json.get("url")
                 else:
-                    st.error(f"{ui_labels['google_network_error']}{response.status_code}): {response.text}"
+                    st.error(f"{ui_labels['google_network_error']}{response.status_code}): {response.text}")
             except Exception:
                 time.sleep(delay)
         return None
