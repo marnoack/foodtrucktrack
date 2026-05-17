@@ -54,9 +54,14 @@ def upload_to_drive(uploaded_file, original_filename):
         
         for delay in [1, 2]:
             try:
-                response = requests.post(SCRIPT_URL, json=payload, timeout=20)
+                response = requests.post(SCRIPT_URL, json=payload, timeout=30)
                 if response.status_code == 200:
-                    return response.json().get("url")
+                    if "error" in res_json:
+                        st.error(f"Error interno de Google Apps Script: {res_json['error']}")
+                        return None
+                    return res_json.get("url")
+                else:
+                    st.error(f"Error de red de Google (Código {response.status_code}): {response.text}")
             except Exception:
                 time.sleep(delay)
         return None
