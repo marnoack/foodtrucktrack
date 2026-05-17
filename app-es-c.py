@@ -686,8 +686,7 @@ def main():
             column_config={
                 # Le indicamos a Streamlit que renderice esta columna como enlaces reales de internet
                 ui_labels["link"]: st.column_config.LinkColumn(
-                    display_text=f"📄 {ui_labels['link']}",
-                    placeholder="⚠️ N/A"
+                    display_text=f"📄 {ui_labels['link']}"
                 )
             }
         )
