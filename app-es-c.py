@@ -121,37 +121,54 @@ def run_ocr_processor(file_bytes, category: str) -> dict:
 
         # --- 2. REGEX DATE EXTRACTION ENGINE ---
         # A more robust date pattern that captures MM/DD/YYYY, M/D/YYYY, or YYYY-MM-DD
-        date_pattern = r'(\b\d{1,2}[/\-]\d{1,2}[/\-]\d{4}\b|\b\d{4}-\d{2}-\d{2}\b)'
+        # and extual: "May 15, 2026" or "May 15 2026" (Case-insensitive)
+        date_pattern = r'(\b\d{1,2}[/\-]\d{1,2}[/\-]\d{4}\b|\b\d{4}-\d{2}-\d{2}\b|\b[A-Za-z]+\s+\d{1,2},?\s+\d{4}\b)'
         
         # Look for "date issue" or "issued" followed by optional spaces, optional colons, and the date
         # re.IGNORECASE makes sure "Date Issue", "DATE ISSUE", and "date issue" all match perfectly
         issue_match = re.search(
-            r'(?:date\s+issue|issued|emision|fecha\s+de\s+emision)\s*[:\-]?\s*' + date_pattern, 
+            r'(?:date\s+(?:of\s+)?issuance|date\s+issue|issued|emision|fecha\s+de\s+emision)\s*[:\-]?\s*' + date_pattern, 
             combined_text, 
             re.IGNORECASE
         )
         
         # Look for expiration labels with the same high tolerance for spacing/case
         expiry_match = re.search(
-            r'(?:expiration|expires|vence|vencimiento|valid\s+thru)\s*[:\-]?\s*' + date_pattern, 
+            r'(?:expiration(?:\s+date)?|expires|vence|vencimiento|valid\s+thru)\s*[:\-]?\s*' + date_pattern,
             combined_text, 
             re.IGNORECASE
         )
-        
+
         # Helper to clean and format whatever string format regex captures
         def normalize_date_string(date_str):
             if not date_str:
                 return ""
+                
             date_str = date_str.strip()
-            # If it's MM/DD/YYYY or M/D/YYYY, convert it to standard database YYYY-MM-DD
-            if "/" in date_str or "-" in date_str and len(date_str.split("-")[0]) != 4:
-                # Replace dashes with slashes temporarily if they used MM-DD-YYYY
-                normalized = date_str.replace("-", "/")
-                for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%m/%d/%y"):
-                    try:
-                        return datetime.strptime(normalized, fmt).strftime("%Y-%m-%d")
-                    except ValueError:
-                        continue
+            # Standardize commas and spacing for text dates
+            normalized = date_str.replace("-", "/")
+    
+            # Added "%B %d, %Y" for "May 15, 2026" and "%b %d, %Y" for short "May 15, 2026"
+            formats = (
+                "%m/%d/%Y", "%d/%m/%Y", "%m/%d/%y", 
+                "%B %d, %Y", "%b %d, %Y", "%B %d %Y", "%b %d %Y"
+            )
+    
+            for fmt in formats:
+                try:
+                   return datetime.strptime(normalized, fmt).strftime("%Y-%m-%d")
+                except ValueError:
+                    continue
+                    
+           # # If it's MM/DD/YYYY or M/D/YYYY, convert it to standard database YYYY-MM-DD
+           # if "/" in date_str or "-" in date_str and len(date_str.split("-")[0]) != 4:
+           #     # Replace dashes with slashes temporarily if they used MM-DD-YYYY
+           #     normalized = date_str.replace("-", "/")
+           #     for fmt in ("%m/%d/%Y", "%d/%m/%Y", "%m/%d/%y"):
+           #         try:
+           #             return datetime.strptime(normalized, fmt).strftime("%Y-%m-%d")
+           #         except ValueError:
+           #             continue
             return date_str # Return as-is if it's already YYYY-MM-DD
             
         # Assign extracted Issue Date
