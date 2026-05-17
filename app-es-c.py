@@ -363,6 +363,7 @@ def init_supabase() -> Client:
     return create_client(url, key)
 
 supabase = init_supabase()
+st.write(supabase.table("permit_rules").select("category").execute().data)
 
 def load_data():
     try:
