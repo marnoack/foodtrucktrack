@@ -219,7 +219,45 @@ CATEGORY_TRANSLATIONS = {
             "repo_title": "Document Repository",
             "score": "Compliance Score",
             "registered": "Registered Documents",
-            "tasks": "Pending Tasks"
+            "tasks": "Pending Tasks",
+            "search_vendor": "Search Vendor",
+            "search_placeholder": "Name or owner...",
+            "select_vendor": "Select Vendor",
+            "no_results": "No results found",
+            "need_regulatory": "💡 Need regulatory information?",
+            "view_guide": "📜 View License Guide",
+            "register_client": "➕ Register New Client",
+            "truck_name": "Food Truck Name *",
+            "owner_name": "Owner Name *",
+            "initial_status": "Initial Status",
+            "save_client": "Save Client",
+            "select_permit_label": "1. Select Permit / Document Type *",
+            "select_permit_placeholder": "-- Select a permit --",
+            "upload_file_for": "2. Upload file for ",
+            "db_silent_reject": "Database rejected the entry silently.",
+            "db_error_prefix": "Database Error: ",
+            "fallback_landing_title": "Vendor Compliance Management",
+            "fallback_landing_caption": "Please select a vendor from the sidebar to view their detailed compliance records.",
+            "total_vendors": "Total Vendors",
+            "in_compliance": "In Compliance",
+            "issues_detected": "Issues Detected",
+            "required_fields_error": "Please fill out required fields (*)",
+            "permanent_save_toast": "saved permanently!",
+            "owner_label": "Owner",
+            "last_audit_label": "Last Audit",
+            "no_rules_configured": "No compliance rules configured in the database.",
+            "expander_upload_title": "📤 Upload and Scan New Document",
+            "ocr_header": "### 🤖 Automated Scan System (OCR)",
+            "ocr_spinner": "🤖 Analyzing document with AWS Textract... Reading data...",
+            "ocr_success": "Data processing completed successfully!",
+            "ocr_process_finalized": "🔄 Process finalized. Client record has been updated.",
+            "verify_form_title": "### 🔍 Verify Extracted Data",
+            "verify_form_caption": "The system read the following information. Correct any data if necessary before saving.",
+            "doc_type_review": "Document Type / Official Permit",
+            "detected_issue_date": "Detected Issuance Date *",
+            "detected_expiry_date": "Detected Expiration Date *",
+            "confirm_save_btn": "Confirm and Save to Record",
+            "save_success_toast": "Saved successfully!"
         }
     },
     "es": {
@@ -239,7 +277,45 @@ CATEGORY_TRANSLATIONS = {
             "repo_title": "Repositorio de Documentos",
             "score": "Puntaje de Cumplimiento",
             "registered": "Documentos Registrados",
-            "tasks": "Tareas Pendientes"
+            "tasks": "Tareas Pendientes",
+            "search_vendor": "Buscar Vendedor",
+            "search_placeholder": "Nombre o propietario...",
+            "select_vendor": "Seleccionar Vendedor",
+            "no_results": "No se encontraron resultados",
+            "need_regulatory": "💡 ¿Necesita información regulatoria?",
+            "view_guide": "📜 Ver Guía de Licencias",
+            "register_client": "➕ Registrar Nuevo Cliente",
+            "truck_name": "Nombre del Food Truck *",
+            "owner_name": "Nombre del Propietario *",
+            "initial_status": "Estado Inicial",
+            "save_client": "Guardar Cliente",
+            "select_permit_label": "1. Seleccione el Permiso / Tipo de Documento *",
+            "select_permit_placeholder": "-- Seleccione un permiso --",
+            "upload_file_for": "2. Suba el archivo para ",
+            "db_silent_reject": "La base de datos rechazó el registro de forma silenciosa.",
+            "db_error_prefix": "Error de base de datos: ",
+            "fallback_landing_title": "Gestión de Cumplimiento de Vendedores",
+            "fallback_landing_caption": "Por favor, seleccione un vendedor de la barra lateral para ver sus registros detallados de cumplimiento.",
+            "total_vendors": "Total de Vendedores",
+            "in_compliance": "En Regla / Cumplen",
+            "issues_detected": "Problemas Detectados",
+            "required_fields_error": "Por favor complete los campos obligatorios (*)",
+            "permanent_save_toast": "guardado permanentemente!",
+            "owner_label": "Propietario",
+            "last_audit_label": "Última Auditoría",
+            "no_rules_configured": "No se encontraron permisos configurados en la base de datos.",
+            "expander_upload_title": "📤 Cargar y Escanear Nuevo Documento",
+            "ocr_header": "### 🤖 Sistema de Escaneo Automático (OCR)",
+            "ocr_spinner": "🤖 Analizando documento con AWS Textract... Leyendo datos...",
+            "ocr_success": "¡Lectura de datos completada con éxito!",
+            "ocr_process_finalized": "🔄 Proceso finalizado. El expediente del cliente ha sido actualizado.",
+            "verify_form_title": "### 🔍 Verifique los Datos Extraídos",
+            "verify_form_caption": "El sistema leyó la siguiente información. Corrija cualquier dato si es necesario antes de guardar.",
+            "doc_type_review": "Tipo de Documento / Permiso Oficial",
+            "detected_issue_date": "Fecha de Emisión Detectada *",
+            "detected_expiry_date": "Fecha de Vencimiento Detectada *",
+            "confirm_save_btn": "Confirmar y Guardar en Expediente",
+            "save_success_toast": "¡Guardado exitosamente!"
         }
     }
 }
@@ -379,7 +455,7 @@ def main():
     st.sidebar.title("🚚 CompliancePro")
     
     st.sidebar.markdown("---")
-    search_query = st.sidebar.text_input("Buscar Vendedor", placeholder="Nombre o propietario...")
+    search_query = st.sidebar.text_input(ui_labels["search_vendor"], placeholder=ui_labels["search_placeholder"])
     
     filtered_vendors = [
         v for v in vendors 
@@ -387,25 +463,29 @@ def main():
     ]
     
     vendor_names = [v['name'] for v in filtered_vendors]
+    
     # selectbox for scalability with large client lists
     selected_name = st.sidebar.selectbox(
-        "Seleccionar Vendedor", 
-        options=vendor_names if vendor_names else ["No se encontraron resultados"],
+        ui_labels["select_vendor"], 
+        options=vendor_names if vendor_names else [ui_labels["no_results"]],
         index=0 if vendor_names else None
     )
     
     st.sidebar.markdown("---")
-    st.sidebar.write("💡 ¿Necesita información regulatoria?")
-    if st.sidebar.button("📜 Ver Guía de Licencias", use_container_width=True):
+    # 3. Informational text and guide button using translated text
+    st.sidebar.write(ui_labels["need_regulatory"])
+    if st.sidebar.button(ui_labels["view_guide"], use_container_width=True):
         show_license_directory()
 
     # Form to Register a New Food Truck Client
-    with st.sidebar.expander("➕ Registrar Nuevo Cliente"):
+    # Registration header and fields using translated text
+    with st.sidebar.expander(ui_labels["register_client"]):
         with st.form("new_vendor_form", clear_on_submit=True):
-            new_name = st.text_input("Nombre del Food Truck *")
-            new_owner = st.text_input("Nombre del Propietario *")
-            new_status = st.selectbox("Estado Inicial", ["Incompleto", "Cumple", "Vencido"])
-            submitted = st.form_submit_button("Guardar Cliente")
+            new_name = st.text_input(ui_labels["truck_name"])
+            new_owner = st.text_input(ui_labels["owner_name"])
+            status_map = [ui_labels["incompleto"], ui_labels["cumple"], ui_labels["vencido"]]
+            new_status = st.selectbox(ui_labels["initial_status"], status_map)
+            submitted = st.form_submit_button(ui_labels["save_client"])
             
             if submitted:
                 if new_name and new_owner:
@@ -422,20 +502,20 @@ def main():
                             st.toast(f"¡{new_name} guardado permanentemente!", icon="✅")
                             st.rerun()
                         else:
-                            st.error("La base de datos rechazó el registro de forma silenciosa.")
+                            st.error(ui_labels["db_silent_reject"])
                     except Exception as e:
-                        st.error(f"Error de base de datos: {e}")
+                        st.error(f"{ui_labels['db_error_prefix']}{e}")
                 else:
-                    st.error("Por favor complete los campos obligatorios (*)")
-                    
-    if not filtered_vendors or selected_name == "No se encontraron resultados":
-        st.title("Gestión de Cumplimiento de Vendedores")
-        st.info("Por favor, seleccione un vendedor de la barra lateral para ver sus registros detallados de cumplimiento.")
+                    st.error(ui_labels["required_fields_error"])
+    
+    if not filtered_vendors or selected_name == ui_labels["no_results"]:                
+        st.title(ui_labels["fallback_landing_title"])
+        st.info(ui_labels["fallback_landing_caption"])
         
         col1, col2, col3 = st.columns(3)
-        col1.metric("Total de Vendedores", len(vendors))
-        col2.metric("En Regla / Cumplen", "33%", delta="5%")
-        col3.metric("Problemas Detectados", "2", delta="-1", delta_color="inverse")
+        col1.metric(ui_labels["total_vendors"], len(vendors))
+        col2.metric(ui_labels["in_compliance"], "33%", delta="5%")
+        col3.metric(ui_labels["issues_detected"], "2", delta="-1", delta_color="inverse")
         return
 
     # Vendor Detail View
@@ -458,7 +538,7 @@ def main():
     col_title, col_status = st.columns([3, 1])
     with col_title:
         st.title(vendor['name'])
-        st.caption(f"Propietario: {vendor['owner']} | Última Auditoría: {vendor['last_audit']}")
+        st.caption(f"{ui_labels['owner_label']}: {vendor['owner']} | {ui_labels['last_audit_label']}: {vendor['last_audit']}")
     
     with col_status:
         if vendor['status'] == "Cumple":
@@ -511,7 +591,7 @@ def main():
         mandatory_permits = []
 
     if not mandatory_permits:
-        st.info("No se encontraron permisos configurados en la base de datos.")
+        st.info(ui_labels["no_rules_configured"])
     else:
         processed_permits = []
         today_str = date.today().strftime('%Y-%m-%d')
@@ -538,11 +618,11 @@ def main():
             if vendedor_permit:
                 expiration_date = vendedor_permit["expiration_date"]
                 if expiration_date < today_str:
-                    status_text = "Vencido" if user_lang == "es" else "Expired"
+                    status_text = ui_labels["vencido"]
                 else:
-                    status_text = "Aprobado" if user_lang == "es" else "Approved"
+                    status_text = ui_labels["aprobado"]
             else:
-                status_text = "Faltante" if user_lang == "es" else "Missing"
+                status_text = ui_labels["faltante"]
                 expiration_date = "-----"
                 
             processed_permits.append({
@@ -571,8 +651,8 @@ def main():
         )
 
     # Management Actions
-    with st.expander("📤 Cargar y Escanear Nuevo Documento"):
-        st.markdown("### 🤖 Sistema de Escaneo Automático (OCR)")
+    with st.expander(ui_labels["expander_upload_title"]):
+        st.markdown(ui_labels["ocr_header"])
 
         # === CHANGE: Initialize Master Visibility Switch and Uploader ID ===
         if "show_verification_form" not in st.session_state:
@@ -596,18 +676,17 @@ def main():
 
         # Step 1: Select the permit directly
         selected_permit = st.selectbox(
-            "1. Seleccione el Permiso / Tipo de Documento *",
-            options=["-- Seleccione un permiso --"] + permit_options
+            ui_labels["select_permit_label"],
+            options=[ui_labels["select_permit_placeholder"]] + permit_options
         )
-        
-        if selected_permit != "-- Seleccione un permiso --":
-            # Find the matching rule in our database data to get its backend category
+
+        if selected_permit != ui_labels["select_permit_placeholder"]:
             matching_rule = next((row for row in db_rules if row["permit_name"] == selected_permit), None)
             backend_category_key = matching_rule["category"] if matching_rule else "other"
             
             # Step 2: Upload file
             uploaded_file = st.file_uploader(
-                f"2. Suba el archivo para {selected_permit}", 
+                f"{ui_labels['upload_file_for']}{selected_permit}",
                 type=['pdf', 'jpg', 'png'],
                 key=f"file_uploader_key_{st.session_state.uploader_id}"
             )
@@ -618,7 +697,7 @@ def main():
             if uploaded_file is not None:
                 # Use session state to cache OCR results so they don't re-run on every click
                 if "ocr_data" not in st.session_state or st.session_state.get("current_file") != uploaded_file.name:
-                    with st.spinner("🤖 Analizando documento con AWS Textract... Leyendo datos..."):
+                    with st.spinner(ui_labels["ocr_spinner"]):
                         
                         # Read the file bytes directly from Streamlit memory
                         file_bytes = uploaded_file.read()
@@ -632,7 +711,7 @@ def main():
                         # Save to session state to prevent reprocessing loops
                         st.session_state.ocr_data = extracted_text
                         st.session_state.current_file = uploaded_file.name
-                        st.success("¡Lectura de datos completada con éxito!")
+                        st.success(ui_labels["ocr_success"])
 
                 # Retrieve scanned data from state cache
                 scanned = st.session_state.ocr_data
@@ -644,11 +723,11 @@ def main():
                 # =====================================================================
                     
                 with st.form("verificacion_documento_form"):
-                    st.markdown("### 🔍 Verifique los Datos Extraídos")
-                    st.caption("El sistema leyó la siguiente información. Corrija cualquier dato si es necesario antes de guardar.")
+                    st.markdown(ui_labels["verify_form_title"])
+                     st.caption(ui_labels["verify_form_caption"])
                     
                     # Display the already selected permit as a read-only variable or disabled box
-                    review_entity = st.text_input("Tipo de Documento / Permiso Oficial", value=selected_permit, disabled=True)
+                    review_entity = st.text_input(ui_labels["doc_type_review"], value=selected_permit, disabled=True)
 
                     # Determinar Fecha de Emisión
                     try:
@@ -659,7 +738,7 @@ def main():
                         except (ValueError, TypeError):
                             default_issue_date = date.today()
 
-                    review_issue = st.date_input("Fecha de Emisión Detectada *", value=default_issue_date)
+                    review_issue = st.date_input(ui_labels["detected_issue_date"], value=default_issue_date)
 
                     # Calcular o Determinar Fecha de Vencimiento
                     default_expiry_date = None
@@ -695,11 +774,11 @@ def main():
                         # Calcular sumando los meses dinámicos a la fecha de emisión
                         default_expiry_date = review_issue + relativedelta(months=months_to_add)
 
-                    review_expiry = st.date_input("Fecha de Vencimiento Detectada *", value=default_expiry_date)
+                    review_expiry = st.date_input(ui_labels["detected_expiry_date"], value=default_expiry_date)
                     # =====================================================================
                 
                     # 3. EL BOTÓN DE SUBMIT AL FINAL (Controla la ejecución)
-                    submitted = st.form_submit_button("Confirmar y Guardar en Expediente", type="primary", use_container_width=True)
+                    submitted = st.form_submit_button(ui_labels["confirm_save_btn"], type="primary", use_container_width=True)
                     
                     if submitted:
 
