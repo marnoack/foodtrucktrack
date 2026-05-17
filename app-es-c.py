@@ -667,6 +667,7 @@ def main():
 
         # 3. Generar el DataFrame y renderizar la tabla con estilos dinámicos
         df_display = pd.DataFrame(processed_permits)
+        df_display = df_display.sort_values(by=ui_labels["document"], ascending=True)
         
         def style_status(val):
             if val in ['Aprobado', 'Approved']:
