@@ -5,7 +5,7 @@ from supabase import create_client, Client
 import boto3
 import re
 import io
-import time
+import timef
 import base64
 import requests
 from PIL import Image
@@ -14,7 +14,7 @@ from PIL import Image
 #SCRIPT_URL = st.secrets.get("gcp_service_account", {}).get("bucket_name")
 SCRIPT_URL = st.secrets.get("GSCRIPT_URL")
 
-def upload_to_drive(uploaded_file, original_filename):
+def upload_to_drive(uploaded_file, original_filename, ui_labels: dict):
     """Sends compressed image or raw PDF to Google Apps Script using its original filename"""
     if not SCRIPT_URL:
         st.error("Configura el URL del script en los Secrets para guardar documentos.")
@@ -64,7 +64,7 @@ def upload_to_drive(uploaded_file, original_filename):
                         return None
                     return res_json.get("url")
                 else:
-                    st.error(f"Error de red de Google (Código {response.status_code}): {response.text}")
+                    st.error(f"{ui_labels['google_network_error']}{response.status_code}): {response.text}"
             except Exception:
                 time.sleep(delay)
         return None
@@ -73,7 +73,7 @@ def upload_to_drive(uploaded_file, original_filename):
         st.error(f"Error al procesar o comprimir el archivo (PDF/Imagen): {e}")
         return None
         
-def run_ocr_processor(file_bytes, category: str) -> dict:
+def run_ocr_processor(file_bytes, category: str, ui_labels: dict) -> dict:
     """
     Processes raw file bytes directly with AWS Textract without saving to S3,
     and parses out the document entity and expiration date.
@@ -196,7 +196,7 @@ def run_ocr_processor(file_bytes, category: str) -> dict:
                 extracted_data["expiration_date"] = date.today().strftime('%Y-%m-%d')
                 
     except Exception as aws_error:
-        st.error(f"Error de procesamiento en AWS Textract: {aws_error}")
+        st.error(f"{ui_labels['ocr_error_prefix']}{aws_error}")
         
     return extracted_data
     
@@ -250,6 +250,7 @@ CATEGORY_TRANSLATIONS = {
             "last_audit_label": "Last Audit",
             "no_rules_configured": "No compliance rules configured in the database.",
             "expander_upload_title": "📤 Upload and Scan New Document",
+            "ocr_error_prefix": "AWS Textract processing error: ",
             "ocr_header": "### 🤖 Automated Scan System (OCR)",
             "ocr_spinner": "🤖 Analyzing document with AWS Textract... Reading data...",
             "ocr_success": "Data processing completed successfully!",
@@ -260,6 +261,7 @@ CATEGORY_TRANSLATIONS = {
             "detected_issue_date": "Detected Issuance Date *",
             "detected_expiry_date": "Detected Expiration Date *",
             "confirm_save_btn": "Confirm and Save to Record",
+            "google_network_error": "Google network error (Code ",
             "save_success_toast": "Saved successfully!"
         }
     },
@@ -311,6 +313,7 @@ CATEGORY_TRANSLATIONS = {
             "last_audit_label": "Última Auditoría",
             "no_rules_configured": "No se encontraron permisos configurados en la base de datos.",
             "expander_upload_title": "📤 Cargar y Escanear Nuevo Documento",
+            "ocr_error_prefix": "Error de procesamiento en AWS Textract: ",
             "ocr_header": "### 🤖 Sistema de Escaneo Automático (OCR)",
             "ocr_spinner": "🤖 Analizando documento con AWS Textract... Leyendo datos...",
             "ocr_success": "¡Lectura de datos completada con éxito!",
@@ -321,6 +324,7 @@ CATEGORY_TRANSLATIONS = {
             "detected_issue_date": "Fecha de Emisión Detectada *",
             "detected_expiry_date": "Fecha de Vencimiento Detectada *",
             "confirm_save_btn": "Confirmar y Guardar en Expediente",
+            "google_network_error": "Error de red de Google (Código ",
             "save_success_toast": "¡Guardado exitosamente!"
         }
     }
@@ -714,7 +718,7 @@ def main():
                         # ==========================================================
                         # PLACE THE NEW DIRECT-STREAM LINE HERE:
                         # ==========================================================
-                        extracted_text = run_ocr_processor(file_bytes, backend_category_key)
+                        extracted_text = run_ocr_processor(file_bytes, backend_category_key, ui_labels)
                         # ==========================================================
                         
                         # Save to session state to prevent reprocessing loops
@@ -804,7 +808,7 @@ def main():
                             # A. Los datos ya están verificados, AHORA subimos a Drive
                             with st.spinner("📤 Datos verificados. Subiendo archivo a Google Drive..."):
                                 # We pass 'new_filename' instead of 'uploaded_file.name'
-                                drive_url = upload_to_drive(uploaded_file, new_filename)
+                                drive_url = upload_to_drive(uploaded_file, new_filename, ui_labels)
                             if not drive_url:
                                 st.error("❌ El archivo no pudo ser subido a Google Drive. Revisa los permisos o el tamaño del archivo. Operación cancelada.")
                                 st.stop() # Detiene la ejecución aquí para que el error no desaparezca
