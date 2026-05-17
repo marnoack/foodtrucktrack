@@ -5,7 +5,7 @@ from supabase import create_client, Client
 import boto3
 import re
 import io
-import timef
+import time
 import base64
 import requests
 from PIL import Image
