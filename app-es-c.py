@@ -591,7 +591,16 @@ def main():
                 # Retrieve scanned data from state cache
                 scanned = st.session_state.ocr_data
                 
-                form_container = st.empty()
+                # =====================================================================
+                # Si acabamos de borrar ocr_data tras un guardado exitoso, 
+                # imprimimos un mensaje de éxito y detenemos la ejecución de este bloque.
+                if "ocr_data" not in st.session_state:
+                    st.success("¡Proceso finalizado con éxito!")
+                    # Usamos un return si esto está dentro de una función def, 
+                    # o simplemente dejamos que pase si la lógica terminó.
+                    # Para asegurar el flujo de Streamlit, usamos st.stop()
+                    st.stop()
+                # =====================================================================
                     
                 with st.form("verificacion_documento_form"):
                     st.markdown("### 🔍 Verifique los Datos Extraídos")
@@ -684,9 +693,6 @@ def main():
                             try:
                                 result = supabase.table("vendor_permits").insert(new_permit_row).execute()
                                 if result.data:
-                                    
-                                    # Agregue esta línea aquí para borrar el formulario de la pantalla:
-                                    form_container.empty()
                                     
                                     # Clear OCR cache on successful upload to reset state completely
                                     del st.session_state.ocr_data
