@@ -685,9 +685,17 @@ def main():
                   # # 2. El botón de confirmación que modificamos en el primer paso va inmediatamente después
                  #  if st.button("Confirmar y Guardar en Expediente", type="primary", use_container_width=True):
                         if review_entity and review_expiry and review_issue:
+                            # 1. CLEAN THE VENDOR NAME (Lowercase, strip spaces, replace spaces with hyphens)
+                            # Assumes your vendor dictionary has a "name" key (e.g., vendor["name"] = "Thai Spice")
+                            vendor_name_clean = vendor["name"].strip().lower().replace(" ", "-")
+                            
+                            # 2. CREATE THE NEW FILENAME (e.g., thai-spice-Galaxy-SERVICES.pdf)
+                            new_filename = f"{vendor_name_clean}-{uploaded_file.name}
+                            
                             # A. Los datos ya están verificados, AHORA subimos a Drive
                             with st.spinner("📤 Datos verificados. Subiendo archivo a Google Drive..."):
-                                drive_url = upload_to_drive(uploaded_file, uploaded_file.name)
+                                # We pass 'new_filename' instead of 'uploaded_file.name'
+                                drive_url = upload_to_drive(uploaded_file, new_filename)
                             if not drive_url:
                                 st.error("❌ El archivo no pudo ser subido a Google Drive. Revisa los permisos o el tamaño del archivo. Operación cancelada.")
                                 st.stop() # Detiene la ejecución aquí para que el error no desaparezca
