@@ -255,6 +255,9 @@ CATEGORY_TRANSLATIONS = {
             "ocr_spinner": "🤖 Analyzing document with AWS Textract... Reading data...",
             "ocr_success": "Data processing completed successfully!",
             "ocr_process_finalized": "🔄 Process finalized. Client record has been updated.",
+            "ocr_save_success": "Document saved and verified successfully!",
+            "ocr_save_error": "Error saving records:",
+            "ocr_empty_fields_error": "Required fields cannot be empty.",
             "verify_form_title": "### 🔍 Verify Extracted Data",
             "verify_form_caption": "The system read the following information. Correct any data if necessary before saving.",
             "doc_type_review": "Document Type / Official Permit",
@@ -262,7 +265,13 @@ CATEGORY_TRANSLATIONS = {
             "detected_expiry_date": "Detected Expiration Date *",
             "confirm_save_btn": "Confirm and Save to Record",
             "google_network_error": "Google network error (Code ",
-            "save_success_toast": "Saved successfully!"
+            "save_success_toast": "Saved successfully!",
+            "critical_alert_title": "⚠️ **IMMEDIATE ACTION REQUIRED**:",
+            "critical_alert_body": "has expired critical permits. A 'Service Suspension' notice has been drafted.",
+            "send_notification_btn": "Send Formal Notification",
+            "notification_sent_toast": "Notification sent to the owner's registered email.",
+            "drive_upload_error": "❌ The file could not be uploaded to Google Drive. Check permissions or file size. Operation canceled.",
+            "supabase_rules_error": "Error connecting to Supabase rules:"
         }
     },
     "es": {
@@ -318,6 +327,9 @@ CATEGORY_TRANSLATIONS = {
             "ocr_spinner": "🤖 Analizando documento con AWS Textract... Leyendo datos...",
             "ocr_success": "¡Lectura de datos completada con éxito!",
             "ocr_process_finalized": "🔄 Proceso finalizado. El expediente del cliente ha sido actualizado.",
+            "ocr_save_success": "¡Documento guardado y verificado con éxito!",
+            "ocr_save_error": "Error al guardar registros:",
+            "ocr_empty_fields_error": "Los campos requeridos no pueden estar vacíos.",
             "verify_form_title": "### 🔍 Verifique los Datos Extraídos",
             "verify_form_caption": "El sistema leyó la siguiente información. Corrija cualquier dato si es necesario antes de guardar.",
             "doc_type_review": "Tipo de Documento / Permiso Oficial",
@@ -325,7 +337,13 @@ CATEGORY_TRANSLATIONS = {
             "detected_expiry_date": "Fecha de Vencimiento Detectada *",
             "confirm_save_btn": "Confirmar y Guardar en Expediente",
             "google_network_error": "Error de red de Google (Código ",
-            "save_success_toast": "¡Guardado exitosamente!"
+            "save_success_toast": "¡Guardado exitosamente!",
+            "critical_alert_title": "⚠️ **ACCION INMEDIATA REQUERIDA**:",
+            "critical_alert_body": "tiene permisos críticos vencidos. Se ha redactado un aviso de 'Suspensión de Servicio'.",
+            "send_notification_btn": "Enviar Notificación Formal",
+            "notification_sent_toast": "Notificación enviada al correo electrónico del propietario.",
+            "drive_upload_error": "❌ El archivo no pudo ser subido a Google Drive. Revisa los permisos o el tamaño del archivo. Operación cancelada.",
+            "supabase_rules_error": "Error al conectar con las reglas de Supabase:"
         }
     }
 }
@@ -731,7 +749,7 @@ def main():
 
                 # === CHANGE: INTERNAL SAFETY SWITCH (Halts rendering after saving) ===
                 if not st.session_state.get("show_verification_form", True):
-                    st.info("🔄 Proceso finalizado. El expediente del cliente ha sido actualizado.")
+                    st.info(ui_labels["ocr_process_finalized"])
                     st.stop()
                 # =====================================================================
                     
@@ -782,7 +800,7 @@ def main():
                                     months_to_add = 12 
                         except Exception as e:
                             months_to_add = 12
-                            st.warning(f"Error al conectar con las reglas de Supabase: {e}")
+                            st.warning(f"{ui_labels['supabase_rules_error']} {e}")
 
                         # Calcular sumando los meses dinámicos a la fecha de emisión
                         default_expiry_date = review_issue + relativedelta(months=months_to_add)
@@ -810,7 +828,7 @@ def main():
                                 # We pass 'new_filename' instead of 'uploaded_file.name'
                                 drive_url = upload_to_drive(uploaded_file, new_filename, ui_labels)
                             if not drive_url:
-                                st.error("❌ El archivo no pudo ser subido a Google Drive. Revisa los permisos o el tamaño del archivo. Operación cancelada.")
+                                st.error(ui_labels["drive_upload_error"])
                                 st.stop() # Detiene la ejecución aquí para que el error no desaparezca
                                 
                             # Buscamos el ID correspondiente de la regla para inyectarlo en la llave foránea
@@ -850,18 +868,18 @@ def main():
                                     if "current_file" in st.session_state:
                                         del st.session_state.current_file
                                     
-                                    st.toast("¡Documento guardado y verificado con éxito!", icon="✅")
+                                    st.toast("ui_labels["ocr_save_success"]", icon="✅")
                                     st.rerun()
                             except Exception as e:
-                                st.error(f"Error al guardar registros: {e}")
+                                st.error(f"{ui_labels['ocr_save_error']} {e}")
                         else:
-                            st.error("Los campos requeridos no pueden estar vacíos.")
+                            st.error(ui_labels["ocr_empty_fields_error"])
 
     # Critical Alerts
-    if vendor['status'] == "Incomplete":
-        st.error(f"⚠️ **ACCION INMEDIATA REQUERIDA**: {vendor['name']} tiene permisos críticos vencidos. Se ha redactado un aviso de 'Suspensión de Servicio'.")
-        if st.button("Enviar Notificación Formal"):
-            st.info("Notificación enviada al correo electrónico del propietario.")
+    if vendor['status'] in ["Incomplete", "Expired", ui_labels["incompleto"], ui_labels["vencido"]]:
+        st.error(f"{ui_labels['critical_alert_title']} {vendor['name']} {ui_labels['critical_alert_body']}")
+        if st.button(ui_labels["send_notification_btn"]):
+            st.info(ui_labels["notification_sent_toast"])
 
 if __name__ == "__main__":
     main()
