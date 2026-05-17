@@ -204,8 +204,8 @@ def run_ocr_processor(file_bytes, category: str, ui_labels: dict) -> dict:
 CATEGORY_TRANSLATIONS = {
     "en": {
         "tax": "Tax",
-        "health": "Health & Safety",
-        "fire_safety": "Fire Safety",
+        "health": "Health",
+        "fire_safety": "Safety",
         "business_license": "Business License",
         "other": "Other",
         "ui": {
@@ -268,7 +268,7 @@ CATEGORY_TRANSLATIONS = {
     "es": {
         "tax": "Impuestos",
         "health": "Salud e Higiene",
-        "fire_safety": "Seguridad contra Incendios",
+        "fire_safety": "Seguridad",
         "business_license": "Licencia de Negocio",
         "other": "Otro",
         "ui": {
