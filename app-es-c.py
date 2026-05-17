@@ -363,7 +363,7 @@ def init_supabase() -> Client:
     return create_client(url, key)
 
 supabase = init_supabase()
-st.write(supabase.table("permit_rules").select("category").execute().data)
+#st.write(supabase.table("permit_rules").select("category").execute().data)
 
 def load_data():
     try:
@@ -637,6 +637,8 @@ def main():
             permit_name = rule["permit_name"]
             backend_key = rule["category"]
             is_required = rule.get("is_required", True)
+            
+            st.caption(f"Categoría interna BD: `{backend_key}`")
             
             if permit_name in ['Generic Tax Document', 'Other Document Type', 'other']:
                 continue
