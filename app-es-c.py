@@ -578,7 +578,7 @@ def main():
             )
 
             if uploaded_file is not None and st.session_state.get("current_file") != uploaded_file.name:
-            st.session_state.show_verification_form = True
+                st.session_state.show_verification_form = True
             
             if uploaded_file is not None:
                 # Use session state to cache OCR results so they don't re-run on every click
