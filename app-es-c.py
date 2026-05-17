@@ -547,12 +547,15 @@ def main():
         st.caption(f"{ui_labels['owner_label']}: {vendor['owner']} | {ui_labels['last_audit_label']}: {vendor['last_audit']}")
     
     with col_status:
-        if vendor['status'] == "Cumple":
-            st.success(f"Estado: {vendor['status']}")
-        elif vendor['status'] == "Vencido":
-            st.error(f"Estado: {vendor['status']}")
+        display_status = ui_labels["incompleto"]
+        if vendor['status'] == "Compliant":
+            display_status = ui_labels["cumple"]
+            st.success(f"{ui_labels['status']}: {display_status}")
+        elif vendor['status'] == "Expired":
+             display_status = ui_labels["vencido"]
+            st.error(f"{ui_labels['status']}: {display_status}")
         else:
-            st.warning(f"Estado: {vendor['status']}")
+            st.warning(f"{ui_labels['status']}: {display_status}")
 
     st.markdown("---")
 
@@ -624,11 +627,11 @@ def main():
             if vendedor_permit:
                 expiration_date = vendedor_permit["expiration_date"]
                 if expiration_date < today_str:
-                    status_text = ui_labels["vencido"]
+                    status_text = "Expired"
                 else:
-                    status_text = ui_labels["aprobado"]
+                    status_text = "Approved"
             else:
-                status_text = ui_labels["faltante"]
+                status_text = "Missing"
                 expiration_date = "-----"
                 
             processed_permits.append({
@@ -851,7 +854,7 @@ def main():
                             st.error("Los campos requeridos no pueden estar vacíos.")
 
     # Critical Alerts
-    if vendor['status'] == ui_labels["vencido"]:
+    if vendor['status'] == "Incomplete":
         st.error(f"⚠️ **ACCION INMEDIATA REQUERIDA**: {vendor['name']} tiene permisos críticos vencidos. Se ha redactado un aviso de 'Suspensión de Servicio'.")
         if st.button("Enviar Notificación Formal"):
             st.info("Notificación enviada al correo electrónico del propietario.")
