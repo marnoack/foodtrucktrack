@@ -553,7 +553,7 @@ def main():
             st.success(f"{ui_labels['status']}: {display_status}")
         elif vendor['status'] == "Expired":
              display_status = ui_labels["vencido"]
-            st.error(f"{ui_labels['status']}: {display_status}")
+             st.error(f"{ui_labels['status']}: {display_status}")
         else:
             st.warning(f"{ui_labels['status']}: {display_status}")
 
