@@ -271,7 +271,8 @@ CATEGORY_TRANSLATIONS = {
             "send_notification_btn": "Send Formal Notification",
             "notification_sent_toast": "Notification sent to the owner's registered email.",
             "drive_upload_error": "❌ The file could not be uploaded to Google Drive. Check permissions or file size. Operation canceled.",
-            "supabase_rules_error": "Error connecting to Supabase rules:"
+            "supabase_rules_error": "Error connecting to Supabase rules:",
+            "link": "View Document"
         }
     },
     "es": {
@@ -343,7 +344,8 @@ CATEGORY_TRANSLATIONS = {
             "send_notification_btn": "Enviar Notificación Formal",
             "notification_sent_toast": "Notificación enviada al correo electrónico del propietario.",
             "drive_upload_error": "❌ El archivo no pudo ser subido a Google Drive. Revisa los permisos o el tamaño del archivo. Operación cancelada.",
-            "supabase_rules_error": "Error al conectar con las reglas de Supabase:"
+            "supabase_rules_error": "Error al conectar con las reglas de Supabase:",
+            "link": "Ver Documento"
         }
     }
 }
@@ -649,6 +651,7 @@ def main():
             
             if vendedor_permit:
                 expiration_date = vendedor_permit["expiration_date"]
+                url_archivo = vendedor_permit.get("document_url", None)
                 if expiration_date < today_str:
                     status_text = "Expired"
                 else:
@@ -662,7 +665,8 @@ def main():
                 ui_labels["category"]: backend_key,
                 #ui_labels["category"]: translated_category,
                 ui_labels["expiry"]: expiration_date,
-                ui_labels["status"]: status_text
+                ui_labels["status"]: status_text,
+                ui_labels["link"]: link_display
             })
 
         # 3. Generar el DataFrame y renderizar la tabla con estilos dinámicos
@@ -681,7 +685,13 @@ def main():
         st.dataframe(
             df_display.style.map(style_status, subset=[ui_labels["status"]]), 
             use_container_width=True,
-            hide_index=True
+            hide_index=True,
+            column_config={
+                # Le indicamos a Streamlit que renderice esta columna como enlaces reales de internet
+                ui_labels["link"]: st.column_config.LinkColumn(
+                    display_text=f"📄 {ui_labels['link']}"
+                )
+            }
         )
 
     # Management Actions
@@ -853,7 +863,8 @@ def main():
                                  "category": backend_category_key,
                                  "issuing_entity": review_entity,
                                  "issue_date": review_issue.strftime('%Y-%m-%d'), 
-                                 "expiration_date": review_expiry.strftime('%Y-%m-%d')
+                                 "expiration_date": review_expiry.strftime('%Y-%m-%d'),
+                                 "document_url": drive_url
                             }
                             try:
                                 result = supabase.table("vendor_permits").insert(new_permit_row).execute()
