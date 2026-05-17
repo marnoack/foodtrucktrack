@@ -568,46 +568,56 @@ def main():
     # Calculate dynamic compliance score based on live permits
     today_str = date.today().strftime('%Y-%m-%d')
 
-# --- FIXED CALCULATIONS BLOCK ---
+# --- ALIGNED STRUCTURE CALCULATION ENGINE ---
     try:
-        rules_response = supabase.table("permit_rules").select("id").execute()
-        total_permits = len(rules_response.data) if rules_response.data else 0
+        rules_response = supabase.table("permit_rules").select("id", "permit_name").execute()
+        mandatory_permits = rules_response.data if rules_response.data else []
     except Exception:
-        total_permits = 0
+        mandatory_permits = []
 
-    if total_permits == 0:
-        total_permits = len(raw_permits)
-
-    # Use a separate evaluation pool for the math, leaving raw_permits 100% intact
-    evaluation_pool = []
-    if raw_permits:
-        sorted_permits = sorted(raw_permits, key=lambda x: x.get('issue_date', ''))
-        latest_permits_dict = {}
-        for p in sorted_permits:
-            permit_key = p.get('permit_id') or p.get('category') or p.get('id')
-            latest_permits_dict[permit_key] = p
-        evaluation_pool = list(latest_permits_dict.values())
+    # Filter out generic placeholder categories just like your layout loop does
+    clean_rules = [r for r in mandatory_permits if r.get("permit_name") not in ['Generic Tax Document', 'Other Document Type', 'other']]
+    total_permits = len(clean_rules)
 
     if total_permits > 0:
-        # Calculate valid uploads using only the unique latest documents
-        valid_permits = len([p for p in evaluation_pool if p['expiration_date'] >= today_str])
-        
-        # Calculate expired uploads using only the unique latest documents
-        expired_permits = len([p for p in evaluation_pool if p['expiration_date'] < today_str])
-        
-        # Cap the baseline to avoid percentages over 100%
-        if valid_permits > total_permits:
-            total_permits = valid_permits
+        # Create a dictionary matching the newest upload to each permit_id
+        uploaded_dict = {}
+        if raw_permits:
+            sorted_permits = sorted(raw_permits, key=lambda x: x.get('issue_date', ''))
+            for p in sorted_permits:
+                if p.get("permit_id") is not None:
+                    uploaded_dict[p["permit_id"]] = p
+
+        valid_permits = 0
+        expired_permits = 0
+        missing_permits_count = 0
+
+        # Loop exactly like your dashboard table does
+        for rule in clean_rules:
+            rule_id = rule["id"]
+            vendedor_permit = uploaded_dict.get(rule_id)
             
+            if vendedor_permit:
+                if vendedor_permit["expiration_date"] < today_str:
+                    expired_permits += 1
+                else:
+                    valid_permits += 1
+            else:
+                missing_permits_count += 1
+
+        # Calculate metrics using identical rule-loop results
         dynamic_score = int((valid_permits / total_permits) * 100)
-        
-        # Tasks = Expired documents + Completely missing required types
-        missing_permits_count = max(0, total_permits - len(evaluation_pool))
         missing = expired_permits + missing_permits_count
     else:
-        dynamic_score = 0
-        missing = 0
-    # --- END FIXED CALCULATIONS BLOCK ---
+        # Fallback tracking if rules cannot be reached
+        if len(raw_permits) > 0:
+            valid_permits = len([p for p in raw_permits if p['expiration_date'] >= today_str])
+            dynamic_score = int((valid_permits / len(raw_permits)) * 100)
+            missing = len([p for p in raw_permits if p['expiration_date'] < today_str])
+        else:
+            dynamic_score = 0
+            missing = 0
+    # --- END ALIGNED STRUCTURE CALCULATION ENGINE ---
     
    # total_permits = len(raw_permits)
    # if total_permits > 0:
