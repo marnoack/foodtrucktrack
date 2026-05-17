@@ -724,7 +724,7 @@ def main():
                     
                 with st.form("verificacion_documento_form"):
                     st.markdown(ui_labels["verify_form_title"])
-                     st.caption(ui_labels["verify_form_caption"])
+                    st.caption(ui_labels["verify_form_caption"])
                     
                     # Display the already selected permit as a read-only variable or disabled box
                     review_entity = st.text_input(ui_labels["doc_type_review"], value=selected_permit, disabled=True)
