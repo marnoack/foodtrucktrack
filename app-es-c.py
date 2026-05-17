@@ -878,7 +878,7 @@ def main():
                             st.error(ui_labels["ocr_empty_fields_error"])
 
     # Critical Alerts
-    if vendor['status'] in ["Incomplete", "Expired", ui_labels["incompleto"], ui_labels["vencido"]]:
+    if missing > 0:
         st.error(f"{ui_labels['critical_alert_title']} {vendor['name']} {ui_labels['critical_alert_body']}")
         if st.button(ui_labels["send_notification_btn"]):
             st.info(ui_labels["notification_sent_toast"])
