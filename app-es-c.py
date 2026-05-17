@@ -581,27 +581,37 @@ def main():
         if "uploader_id" not in st.session_state:
             st.session_state.uploader_id = 1
         
-        # Step 1: Force category selection first
-        available_categories = {
-            CATEGORY_TRANSLATIONS[user_lang][key]: key 
-            for key in ["tax", "health", "fire_safety", "business_license", "other"]
-        }
-        
-        selected_ui_category = st.selectbox(
-            "1. Seleccione la categoría del documento *",
-            options=["-- Seleccione una categoría --"] + list(available_categories.keys())
+        # =====================================================================
+        try:
+            # Fetch all available permit rules from your database
+            rules_query = supabase.table("permit_rules").select("permit_name", "category", "validity_months").execute()
+            db_rules = rules_query.data if rules_query.data else []
+            
+            # Extract a unique, sorted list of permit names for the dropdown
+            permit_options = sorted(list(set([row["permit_name"] for row in db_rules])))
+        except Exception as db_err:
+            st.error(f"Error cargando opciones de permisos de Supabase: {db_err}")
+            db_rules = []
+            permit_options = ["Food Manager Certificate", "General Business License"]
+
+        # Step 1: Select the permit directly
+        selected_permit = st.selectbox(
+            "1. Seleccione el Permiso / Tipo de Documento *",
+            options=["-- Seleccione un permiso --"] + permit_options
         )
         
-        if selected_ui_category != "-- Seleccione una categoría --":
-            backend_category_key = available_categories[selected_ui_category]
+        if selected_permit != "-- Seleccione un permiso --":
+            # Find the matching rule in our database data to get its backend category
+            matching_rule = next((row for row in db_rules if row["permit_name"] == selected_permit), None)
+            backend_category_key = matching_rule["category"] if matching_rule else "other"
             
-            # === CHANGE: File upload with dynamic ID controlled by session state ===
+            # Step 2: Upload file
             uploaded_file = st.file_uploader(
-                f"2. Suba el documento de {selected_ui_category} para escaneo automático", 
+                f"2. Suba el archivo para {selected_permit}", 
                 type=['pdf', 'jpg', 'png'],
                 key=f"file_uploader_key_{st.session_state.uploader_id}"
             )
-
+            
             if uploaded_file is not None and st.session_state.get("current_file") != uploaded_file.name:
                 st.session_state.show_verification_form = True
             
@@ -636,15 +646,9 @@ def main():
                 with st.form("verificacion_documento_form"):
                     st.markdown("### 🔍 Verifique los Datos Extraídos")
                     st.caption("El sistema leyó la siguiente información. Corrija cualquier dato si es necesario antes de guardar.")
-                
-                    # Step 3: Prefill fields with OCR outputs.
-                    review_entity = st.text_input(
-                        "Entidad Emisora / Nombre del Documento Detectado *", 
-                        value=scanned.get("issuing_entity", "")
-                    )
-                
-                    # =====================================================================
-                    from dateutil.relativedelta import relativedelta
+                    
+                    # Display the already selected permit as a read-only variable or disabled box
+                    review_entity = st.text_input("Tipo de Documento / Permiso Oficial", value=selected_permit, disabled=True)
 
                     # Determinar Fecha de Emisión
                     try:
