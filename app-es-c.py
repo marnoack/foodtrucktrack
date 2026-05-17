@@ -614,7 +614,7 @@ def main():
     # Document Table
     st.subheader(ui_labels["repo_title"])
     try:
-        rules_response = supabase.table("permit_rules").select("id", "permit_name", "", "is_required").execute()
+        rules_response = supabase.table("permit_rules").select("id", "permit_name", "category", "is_required").execute()
         mandatory_permits = rules_response.data if rules_response.data else []
         
     except Exception as e:
